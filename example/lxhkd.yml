@@ -1,0 +1,7 @@
+---
+shell: zsh
+timeout: 300
+key_repeat_rate: 50
+
+bindings:
+  super + t: notify-send -a lxhkd "it" "worked"

@@ -56,25 +56,29 @@
     clippy::enum_variant_names
 )]
 
+mod cli;
 mod config;
 mod keys;
-mod keysyms;
 mod macros;
+// mod parser;
 mod types;
+mod utils;
 mod xcb_utils;
-// mod parse;
 
-use anyhow::Result;
-use std::panic;
+use anyhow::{Context, Result};
+use clap::Parser;
+use keys::keyboard::Keyboard;
 
 fn main() -> Result<()> {
-    better_panic::install();
-    panic::set_hook(Box::new(|panic_info| {
-        better_panic::Settings::auto().create_panic_handler()(panic_info);
-    }));
+    let config =
+        config::Config::load_default().context("failed to load default configuration file");
+    let args = cli::Opts::parse();
 
-    let (conn, screen) = xcb_utils::setup_connection()?;
-    crate::keys::get_lock_fields(&conn);
+    utils::initialize_logging(&args);
+
+    let (conn, screen_num) = xcb_utils::setup_connection()?;
+
+    let keyboard = Keyboard::new(&conn, screen_num);
 
     Ok(())
 }

@@ -20,5 +20,5 @@ pub(crate) enum Error {
 
 /// Setup X11 connection
 pub(crate) fn setup_connection() -> Result<(RustConnection, usize), Error> {
-    RustConnection::connect(None).map_err(|e| Error::Connection(e))
+    RustConnection::connect(None).map_err(Error::Connection)
 }

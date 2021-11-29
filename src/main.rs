@@ -60,7 +60,7 @@ mod cli;
 mod config;
 mod keys;
 mod macros;
-// mod parser;
+mod parser;
 mod types;
 mod utils;
 mod xcb_utils;
@@ -71,14 +71,18 @@ use keys::keyboard::Keyboard;
 
 fn main() -> Result<()> {
     let config =
-        config::Config::load_default().context("failed to load default configuration file");
+        config::Config::load_default().context("failed to load default configuration file")?;
     let args = cli::Opts::parse();
+
+    println!("config: {:#?}", config);
 
     utils::initialize_logging(&args);
 
     let (conn, screen_num) = xcb_utils::setup_connection()?;
 
-    let keyboard = Keyboard::new(&conn, screen_num);
+    let keyboard = Keyboard::new(&conn, screen_num)?;
+
+    println!("char: {:#?}", keyboard.charmap());
 
     Ok(())
 }

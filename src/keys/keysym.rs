@@ -4,7 +4,9 @@ use anyhow::{Context, Result};
 use bimap::BiMap;
 use std::{cmp::Ordering, fmt};
 use thiserror::Error;
+use x11rb::protocol::xproto::Keysym;
 use xkbcommon::xkb;
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Error)]
 pub(crate) enum Error {
@@ -17,7 +19,7 @@ pub(crate) enum Error {
 /// A [`Keysym`](xcb::Keysym) wrapper
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub(crate) struct XKeysym {
-    inner: xkb::Keysym,
+    inner: Keysym,
 }
 
 impl XKeysym {
@@ -27,16 +29,16 @@ impl XKeysym {
     }
 }
 
-impl From<xkb::Keysym> for XKeysym {
-    fn from(inner: xkb::Keysym) -> XKeysym {
+impl From<Keysym> for XKeysym {
+    fn from(inner: Keysym) -> XKeysym {
         XKeysym { inner }
     }
 }
 
 impl Ord for XKeysym {
     fn cmp(&self, other: &XKeysym) -> Ordering {
-        let inner: u32 = self.inner.into();
-        inner.cmp(&other.inner.into())
+        let inner: u32 = self.inner;
+        inner.cmp(&other.inner)
     }
 }
 
@@ -48,7 +50,7 @@ impl PartialOrd for XKeysym {
 
 impl fmt::Display for XKeysym {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.inner.to_string())
+        write!(f, "{}", self.inner)
     }
 }
 
@@ -61,13 +63,17 @@ impl fmt::Display for XKeysym {
 // Taken from the `x11` crate and modified for serialization
 
 /// Hash of available keymaps
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct KeysymHash {
-    pub(crate) hash: BiMap<String, u32>,
+pub(crate) struct KeysymHash(Lazy<BiMap<String, Keysym>>);
+
+impl fmt::Debug for KeysymHash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:#?}", self.0)
+    }
 }
 
 impl KeysymHash {
-    pub(crate) fn init() -> Self {
+    #[allow(clippy::declare_interior_mutable_const)]
+    pub(crate) const HASH: Self = Self(Lazy::new(|| {
         let mut hash = BiMap::new();
 
         hash.insert(String::from("BackSpace"), xkb::KEY_BackSpace); // 0xff08
@@ -3517,21 +3523,20 @@ impl KeysymHash {
             xkb::KEY_XF86LogWindowTree,
         ); // 0x1008FE24
         hash.insert(String::from("XF86LogGrabInfo"), xkb::KEY_XF86LogGrabInfo); // 0x1008FE25
-
-        Self { hash }
-    }
+        hash
+    }));
 
     /// Return the Keysym name based on the code
     pub(crate) fn get_keysym(&self, code: u32) -> Option<&String> {
-        self.hash.get_by_right(&code)
+        self.0.get_by_right(&code)
     }
 
     /// Return the Keysym code based on the name
     pub(crate) fn get_code(&self, keysym: &str) -> Option<&u32> {
-        self.hash.get_by_left(&keysym.to_string())
+        self.0.get_by_left(&keysym.to_string())
     }
 
-    /// Return the UTF-8 conversion of the Keysym
+    /// Return the UTF-8 conversion of the `Keysym`
     pub(crate) fn utf8(&self, keysym: &str) -> Result<String, Error> {
         if let Some(key) = self.get_code(keysym) {
             String::from_utf8(

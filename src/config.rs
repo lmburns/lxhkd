@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use crate::parser::Action;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -9,6 +10,9 @@ use std::{
 
 const CONFIG_FILE: &str = "lxhkd.yml";
 
+/// What makes up a binding
+
+/// Global configuration settings
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct GlobalSettings {
     /// The shell to use for running commands
@@ -64,7 +68,7 @@ impl Config {
     pub(crate) fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let file = fs::read(&path).context("failed to read config file")?;
-        Ok(serde_yaml::from_slice(&file).context("failed to deserialize config file")?)
+        serde_yaml::from_slice(&file).context("failed to deserialize config file")
     }
 
     /// Load the default configuration file

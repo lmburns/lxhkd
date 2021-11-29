@@ -46,7 +46,7 @@ impl PartialOrd for Chord {
 
 impl Chord {
     /// Construct a chord from a string found in the configuration file
-    pub fn from_string(line: &str) -> Result<Self, Error> {
+    pub(crate) fn from_string(line: &str) -> Result<Self, Error> {
         let mut modmask = XModMask::from(xkb::ModMask(0));
         let keys = line.split('+').map(|s| s.trim()).collect::<Vec<&str>>();
 

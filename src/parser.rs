@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, process::Command, str::FromStr};
+use std::{
+    cmp::Ordering,
+    process::{Command, Stdio},
+    str::FromStr,
+};
 
 /// The action that a mapping will do
 ///
@@ -14,12 +18,38 @@ pub(crate) enum Action {
 }
 
 impl Action {
+    /// Spawn a shell from the given keybind mapping
+    pub(crate) fn spawn_shell<I, S>(cmd: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut builder = Command::new("sh");
+        builder.arg("-c");
+
+        for arg in cmd {
+            let arg = arg.as_ref();
+            builder.arg(arg);
+        }
+
+        builder
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok();
+    }
+
+    /// Run the given `Action`, given it is a command or a remap
     pub(crate) fn run(&self) {
-        match *self {
-            Action::ShellCmd(cmd) => {
-                let _ = Command::new("sh").args(&["-c", repr]).spawn();
+        match self {
+            Self::ShellCmd(cmd) => {
+                Self::spawn_shell(
+                    cmd.split_whitespace()
+                        .map(str::trim)
+                        .collect::<Vec<_>>(),
+                );
             },
-            Action::Remap(remap) => {
+            Self::Remap(remap) => {
                 println!("found remap: {}", remap);
             },
         }

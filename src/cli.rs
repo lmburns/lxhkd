@@ -14,19 +14,24 @@ use std::{env, fs, path::PathBuf};
     global_setting = AppSettings::InferSubcommands,
 )]
 pub(crate) struct Opts {
-    #[clap(long, short, global = true, parse(from_occurrences))]
     /// Display debugging messages on 4 levels
+    #[clap(long, short, global = true, parse(from_occurrences))]
     pub(crate) verbose: u8,
+
     /// Location of configuration file
     #[clap(
         long, short,
         number_of_values = 1,
-        value_name = "config",
+        value_name = "file",
         value_hint = ValueHint::FilePath,
         validator = |t| fs::metadata(t)
                             .map_err(|_| "must be a valid path")
                             .map(|_| ())
                             .map_err(|e| e.to_string()),
     )]
-    pub(crate) dir:     Option<PathBuf>,
+    pub(crate) config: Option<PathBuf>,
+
+    /// List the available Keysyms
+    #[clap(long = "keysyms", short = 'k', takes_value = false)]
+    pub(crate) keysyms: bool,
 }

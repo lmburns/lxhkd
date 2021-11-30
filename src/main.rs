@@ -31,7 +31,7 @@
     unaligned_references,
     unconditional_recursion,
     unreachable_pub,
-    // unsafe_code,
+    unsafe_code,
     // unused,
     unused_allocation,
     unused_comparisons,
@@ -40,7 +40,7 @@
     unused_lifetimes,
     unused_parens,
     unused_qualifications,
-    variant_size_differences,
+    // variant_size_differences,
     while_true
 )]
 #![allow(
@@ -60,29 +60,38 @@ mod cli;
 mod config;
 mod keys;
 mod macros;
-mod parser;
+mod parse;
 mod types;
 mod utils;
 mod xcb_utils;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use cli::Opts;
+use config::Config;
 use keys::keyboard::Keyboard;
+use xcb_utils::XUtility;
+use colored::Colorize;
 
 fn main() -> Result<()> {
-    let config =
-        config::Config::load_default().context("failed to load default configuration file")?;
-    let args = cli::Opts::parse();
+    if users::get_effective_uid() == 0 || users::get_current_uid() == 0 {
+        lxhkd_fatal!("this program is not meant to be ran as a root user. Try again");
+    }
+
+    let config = Config::load_default().context("failed to load default configuration file")?;
+    let args = Opts::parse();
+    utils::initialize_logging(&args);
 
     println!("config: {:#?}", config);
 
-    utils::initialize_logging(&args);
-
-    let (conn, screen_num) = xcb_utils::setup_connection()?;
-
+    let (conn, screen_num) = XUtility::setup_connection()?;
     let keyboard = Keyboard::new(&conn, screen_num)?;
 
-    println!("char: {:#?}", keyboard.charmap());
+    if args.keysyms {
+        keyboard.list_keysyms()?;
+    }
+
+    // println!("char: {:#?}", keyboard.charmap());
 
     Ok(())
 }

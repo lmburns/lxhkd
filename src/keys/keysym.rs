@@ -1,5 +1,6 @@
-//! [`Keysym`](xkb::Keysym) wrapper, used to implement custom methods
+//! [`Keysym`](x11rb::protocol::xproto::Keysym) wrapper, used to implement custom methods
 
+use super::keys::CharacterMap;
 use anyhow::{Context, Result};
 use bimap::BiMap;
 use std::{cmp::Ordering, fmt};
@@ -7,38 +8,34 @@ use thiserror::Error;
 use x11rb::protocol::xproto::Keysym;
 use xkbcommon::xkb;
 use once_cell::sync::Lazy;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Error)]
-pub(crate) enum Error {
-    #[error("{0} was not found in the database")]
-    InvalidKey(String),
-    #[error("failed to convert {0} to UTF-8")]
-    Utf8Conversion(String),
-}
-
-/// A [`Keysym`](xcb::Keysym) wrapper
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub(crate) struct XKeysym {
-    inner: Keysym,
-}
+/// A [`Keysym`](x11rb::protocol::xproto::Keysym) wrapper
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
+pub(crate) struct XKeysym(Keysym);
 
 impl XKeysym {
     /// Create a new instance of `XKeysym` from a [`Keysym`](xkb::Keysym)
-    pub(crate) fn new(inner: xkb::Keysym) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Keysym) -> Self {
+        Self(inner)
+    }
+}
+
+impl From<CharacterMap> for XKeysym {
+    fn from(charmap: CharacterMap) -> XKeysym {
+        XKeysym(charmap.symbol)
     }
 }
 
 impl From<Keysym> for XKeysym {
     fn from(inner: Keysym) -> XKeysym {
-        XKeysym { inner }
+        XKeysym(inner)
     }
 }
 
 impl Ord for XKeysym {
     fn cmp(&self, other: &XKeysym) -> Ordering {
-        let inner: u32 = self.inner;
-        inner.cmp(&other.inner)
+        self.0.cmp(&other.0)
     }
 }
 
@@ -50,11 +47,21 @@ impl PartialOrd for XKeysym {
 
 impl fmt::Display for XKeysym {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.inner)
+        write!(f, "{}", self.0)
     }
 }
 
 ///////////////////////////////////////////////////////////////////
+
+/// Errors used for `KeysymHash`
+#[derive(Debug, Error)]
+pub(crate) enum Error {
+    #[error("{0} was not found in the database")]
+    InvalidKey(String),
+
+    #[error("failed to convert {0} to UTF-8")]
+    Utf8Conversion(String),
+}
 
 // x11-rs: Rust bindings for X11 libraries
 // The X11 libraries are available under the MIT license.

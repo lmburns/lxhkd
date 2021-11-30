@@ -1,4 +1,5 @@
 use super::{
+    event_handler::Handler,
     keys::{self, CharacterMap, XKeyCode},
     keysym::{KeysymHash, XKeysym},
 };
@@ -12,7 +13,6 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, collections::HashMap, fmt, str::FromStr};
 use thiserror::Error;
-// use rayon::prelude::*;
 
 // use xcb::{Cookie, Reply};
 // use xcb_util::keysyms::KeySymbols;
@@ -22,17 +22,21 @@ use thiserror::Error;
 use x11rb::{
     connection::{Connection, RequestConnection},
     errors::ReplyError,
-    properties, protocol,
+    properties,
     protocol::{
+        self,
         xkb::{self, ConnectionExt as _, GetMapReply, KeyModMap, KeySymMap, MapPart, ID},
-        xproto::{self, ConnectionExt, EventMask, Keycode, Keysym, ModMask},
-        xtest,
+        xproto::{
+            self, ConnectionExt, EventMask, GetKeyboardMappingReply, Keycode, Keysym, ModMask,
+        },
+        xtest, Event,
     },
     rust_connection::RustConnection,
     wrapper::ConnectionExt as _,
 };
 
 // TODO: GetControlsReply for key repeat
+// SetControlsRequest
 // ListComponentsReply = keymaps keycodes
 
 #[derive(Debug, Error)]
@@ -64,32 +68,51 @@ pub(crate) enum Error {
     LookupKeysyms(u8, KeySymMap),
     #[error("failed to lookup keysym {0:?}")]
     LookupKeysymHash(Keysym),
-    #[error("failed to build a `CharacterMap` for (Keysym={0:?}, Keycode={1}): {2}")]
+    #[error("failed to build a `CharacterMap` for (Keysym={0}, Keycode={1}): {2}")]
     BuildCharacterMap(Keysym, Keycode, anyhow::Error),
+    #[error("failed to find a `CharacterMap` for keycode={0}")]
+    LookupKeycode(Keycode),
+    #[error("failed to poll to next `CharacterMap`: {0}")]
+    PollNextCharacterMap(#[from] anyhow::Error),
 }
 
 /// State of the keyboard
 pub(crate) struct Keyboard<'a> {
     /// Connection to the X-Server
-    conn:        &'a RustConnection,
+    conn:               &'a RustConnection,
     /// Root window.
-    root:        xproto::Window,
+    root:               xproto::Window,
     /// The characters, keysyms, etc making up the `Keyboard`
-    charmap:     Vec<CharacterMap>,
+    pub(crate) charmap: Vec<CharacterMap>,
+    /// The device's ID
+    device_id:          Xid,
     /// The minimum keycode
-    min_keycode: u8,
+    min_keycode:        u8,
     /// The maximum keycode
-    max_keycode: u8,
+    max_keycode:        u8,
 }
-
-// /// The device's ID
-// device_id:  Xid,
 
 impl<'a> Keyboard<'a> {
     /// Construct a new instance of `Keyboard`
     pub(crate) fn new(conn: &'a RustConnection, screen_num: usize) -> Result<Self> {
         let screen = conn.setup();
         let root = screen.roots[screen_num].clone().root;
+
+        // TODO: query XF86 ext
+
+        // conn.xkb_get_controls(ID::USE_CORE_KBD.into());
+        // conn.xkb_set_controls(device_id, affect_internal_real_mods,
+        // internal_real_mods, affect_ignore_lock_real_mods, ignore_lock_real_mods,
+        // affect_internal_virtual_mods, internal_virtual_mods,
+        // affect_ignore_lock_virtual_mods, ignore_lock_virtual_mods,
+        // mouse_keys_dflt_btn, groups_wrap, access_x_options, affect_enabled_controls,
+        // enabled_controls, change_controls, repeat_delay, repeat_interval,
+        // slow_keys_delay, debounce_delay, mouse_keys_delay, mouse_keys_interval,
+        // mouse_keys_time_to_max, mouse_keys_max_speed, mouse_keys_curve,
+        // access_x_timeout, access_x_timeout_mask, access_x_timeout_values,
+        // access_x_timeout_options_mask, access_x_timeout_options_values,
+        // per_key_repeat)
+
         let (xkb_min, xkb_max) = xkb::X11_XML_VERSION;
 
         // TODO: do i need both?
@@ -134,8 +157,9 @@ impl<'a> Keyboard<'a> {
             conn,
             root,
             charmap: Vec::new(),
-            min_keycode: 0,
-            max_keycode: 0,
+            device_id: 0,
+            min_keycode: screen.min_keycode,
+            max_keycode: screen.max_keycode,
         };
 
         keyboard.generate_charmap()?;
@@ -143,7 +167,23 @@ impl<'a> Keyboard<'a> {
         Ok(keyboard)
     }
 
-    /// Get the `GetMapReply`
+    // ModDef
+    // KeyType
+
+    /// Get the `GetKeyboardMappingReply`. This only contains the `Keysyms` from
+    /// the minimum keycode to the maximum keycode. Much simpler that
+    /// [`get_map_reply`](Keyboard::get_map_reply), but doesn't provide as much
+    /// information
+    pub(crate) fn get_keyboard_mapping_reply(&self) -> Result<GetKeyboardMappingReply> {
+        self.conn
+            .get_keyboard_mapping(self.min_keycode, self.max_keycode - self.min_keycode)
+            .context("failed to get XKB `GetKeyboardMappingReply`")?
+            .reply()
+            .context("failed to get XKB `GetKeyboardMappingReply` reply")
+    }
+
+    /// Get the `GetMapReply`. Provides the minimum and maximum keycode, as well
+    /// as `Keysyms` which are "real" modifiers and "virtual" modifiers.
     pub(crate) fn get_map_reply(&self) -> Result<GetMapReply> {
         // | MapPart::EXPLICIT_COMPONENTS
         // | MapPart::KEY_ACTIONS
@@ -173,7 +213,7 @@ impl<'a> Keyboard<'a> {
                 0_u8,                    // first_v_mod_map_key
                 0_u8,                    // n_v_mod_map_keys
             )
-            .context("failed to get xkb mapp")?
+            .context("failed to get XKB `GetMapReply`")?
             .reply()
             .context("failed to get 'GetMapReply' reply")
     }
@@ -182,8 +222,7 @@ impl<'a> Keyboard<'a> {
     pub(crate) fn generate_charmap(&mut self) -> Result<()> {
         let get_reply = self.get_map_reply()?;
 
-        self.min_keycode = get_reply.min_key_code;
-        self.max_keycode = get_reply.max_key_code;
+        self.device_id = get_reply.device_id;
 
         let map = get_reply.map;
 
@@ -212,6 +251,10 @@ impl<'a> Keyboard<'a> {
         for (idx, symm) in sym_maps.iter().enumerate() {
             let kc = self.min_keycode + idx as u8;
             let group_cnt = symm.group_info & 0x0f;
+            let vmod = virtual_mod
+                .iter()
+                .find(|v| v.keycode == kc)
+                .map_or(0, |v| v.vmods);
 
             for group in 0..group_cnt {
                 let key_type_idx = symm.kt_index[group as usize & 0x03];
@@ -232,8 +275,6 @@ impl<'a> Keyboard<'a> {
                         }
                     }
 
-                    // 'vmod_search: for vmod in &key_type
-
                     let hash = KeysymHash::HASH;
 
                     match hash
@@ -244,9 +285,10 @@ impl<'a> Keyboard<'a> {
                             let charmap = CharacterMap::new(
                                 ks.to_string(),
                                 kc,
-                                u16::from(modmask | keys::get_keycode_modifier(key_modmap, kc)),
+                                u16::from(modmask | keys::get_modmask_from_keycode(key_modmap, kc)),
                                 keysym,
                                 key_level,
+                                vmod,
                                 group,
                             );
 
@@ -254,13 +296,11 @@ impl<'a> Keyboard<'a> {
 
                             self.charmap.push(charmap);
                         },
-                        Err(e) => {
-                            log::debug!(
-                                "failed to build a `CharacterMap` for (Keysym={:?}, Keycode={}): \
-                                 {}",
+                        Err(_) => {
+                            log::info!(
+                                "failed to build a `CharacterMap` for (Keysym={}, Keycode={})",
                                 keysym.to_string().green().bold(),
                                 kc.to_string().yellow().bold(),
-                                e
                             );
                         },
                     }
@@ -330,11 +370,6 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    // /// Return the device's ID
-    // pub(crate) fn device_id(&self) -> Xid {
-    //     self.device_id
-    // }
-
     /// Return the connection to the X-Server
     pub(crate) fn connection(&self) -> &RustConnection {
         self.conn
@@ -350,6 +385,11 @@ impl<'a> Keyboard<'a> {
         self.conn.flush().is_ok()
     }
 
+    /// Return the device's ID
+    pub(crate) fn device_id(&self) -> Xid {
+        self.device_id
+    }
+
     /// Return the `CharacterMap`
     pub(crate) fn charmap(&self) -> &Vec<CharacterMap> {
         &self.charmap
@@ -360,17 +400,79 @@ impl<'a> Keyboard<'a> {
         println!("{:#?}", self.charmap);
     }
 
-    /// Grab control of all keyboard input
-    pub(crate) fn grab_keyboard(&self) {
-        if let Err(e) = self.conn.grab_keyboard(
-            true,        // owner events
-            self.root(), // window
-            x11rb::CURRENT_TIME,
-            xproto::GrabMode::ASYNC,
-            xproto::GrabMode::ASYNC,
-        ) {
-            lxhkd_fatal!("failed to grab keyboard: {}", e);
+    /// This has a user interface, where one can list the available `Keysym`s in
+    /// a neat format
+    pub(crate) fn list_keysyms(&self) -> Result<()> {
+        use cli_table::{
+            format::{Border, Justify, Separator},
+            print_stdout, Cell, CellStruct, ColorChoice, Style, Table,
+        };
+        let mut table = vec![];
+
+        for charmap in &self.charmap {
+            table.push(vec![
+                charmap.utf.purple().bold().cell().justify(Justify::Left),
+                charmap
+                    .code
+                    .to_string()
+                    .green()
+                    .cell()
+                    .justify(Justify::Left),
+                charmap
+                    .symbol
+                    .to_string()
+                    .yellow()
+                    .cell()
+                    .justify(Justify::Left),
+                charmap
+                    .modmask
+                    .to_string()
+                    .red()
+                    .bold()
+                    .cell()
+                    .justify(Justify::Left),
+            ]);
         }
+
+        let build_title = |s: &str| -> CellStruct { s.blue().bold().cell().justify(Justify::Left) };
+
+        print_stdout(
+            table
+                .table()
+                .title(vec![
+                    build_title("UTF Keysym"),
+                    build_title("Keycode"),
+                    build_title("Keysym Code"),
+                    build_title("Modmask"),
+                ])
+                .border(Border::builder().build())
+                .separator(Separator::builder().build()),
+        )
+        .context("failure to print table to `stdout`")?;
+
+        Ok(())
+    }
+
+    /// Grab control of all keyboard input
+    pub(crate) fn grab_keyboard(&self) -> Result<()> {
+        let reply = self
+            .conn
+            .grab_keyboard(
+                false,       // owner events
+                self.root(), // window
+                x11rb::CURRENT_TIME,
+                xproto::GrabMode::ASYNC,
+                xproto::GrabMode::ASYNC,
+            )
+            .context("failed to grab keyboard")?
+            .reply()
+            .context("failed to get reply after grabbing keyboard")?;
+
+        if reply.status != xproto::GrabStatus::SUCCESS {
+            lxhkd_fatal!("failed to grab keyboard. Replied with unsuccessful status");
+        }
+
+        Ok(())
     }
 
     /// Ungrab/release the keyboard
@@ -381,7 +483,7 @@ impl<'a> Keyboard<'a> {
     }
 
     /// Grab a specified key
-    pub(crate) fn grab_key(&self, keycodes: &[XKeyCode]) {
+    pub(crate) fn grab_key1(&self, keycodes: &[XKeyCode]) {
         for modifier in &[0, u16::from(ModMask::M2)] {
             for key in keycodes {
                 if let Err(e) = self.conn.grab_key(
@@ -396,53 +498,116 @@ impl<'a> Keyboard<'a> {
                     xproto::GrabMode::ASYNC,
                     xproto::GrabMode::ASYNC,
                 ) {
-                    lxhkd_fatal!(
-                        "failed to grab key {:?} at modifier {}: {}",
-                        key,
-                        modifier,
-                        e
-                    );
+                    lxhkd_fatal!("failed to grab key {:?} at mask {}: {}", key, modifier, e);
                 }
             }
         }
     }
 
+    /// Grab a specified key without search through modifiers
+    pub(crate) fn grab_key(&self, keycodes: &[XKeyCode]) {
+        for key in keycodes {
+            if let Err(e) = self.conn.grab_key(
+                false,
+                self.root,
+                key.mask,
+                key.code,
+                xproto::GrabMode::ASYNC,
+                xproto::GrabMode::ASYNC,
+            ) {
+                lxhkd_fatal!(
+                    "failed to grab key {:?} with a mask {}: {}",
+                    key,
+                    key.mask,
+                    e
+                );
+            }
+        }
+    }
+
+    /// Ungrab a set of `XKeyCode`'s
+    pub(crate) fn ungrab_key(&self, keycodes: &[XKeyCode]) {
+        for key in keycodes {
+            if let Err(e) = self.conn.ungrab_key(
+                key.code,  // key
+                self.root, // window
+                key.mask,  // modifier
+            ) {
+                lxhkd_fatal!("failed to ungrab key: {}", e);
+            }
+        }
+    }
+
     /// Ungrab any grabbed key
-    pub(crate) fn ungrab_key(&self) {
+    pub(crate) fn ungrab_any_key(&self) {
         if let Err(e) = self.conn.ungrab_key(
             xproto::Grab::ANY,    // key
             self.root,            // window
             xproto::ModMask::ANY, // modifier
         ) {
-            lxhkd_fatal!("failed to ungrab key: {}", e);
+            lxhkd_fatal!("failed to ungrab any key: {}", e);
         }
     }
 
-    // /// Generate a keysym map from a mock state of the keyboard. This is used to
-    // /// create a mapping between [`XKeysym`](super::keysym::XKeysym) and
-    // /// [`Keycode`](xkb::Keycode)
-    // fn generate_keysyms(&mut self) {
-    //     let mut keycode = self.setup.min_keycode();
-    //     while keycode != self.setup.max_keycode() {
-    //         let sym = self.state.key_get_syms(keycode);
-    //         xkbcommon::xkb
-    //
-    //         let key = xkbcommon::xcb::xkb::Key(&self.state, keycode);
-    //         let sym = key.sym();
-    //
-    //         log::debug!(
-    //             "dummy: keycode {:?} {} keysym {:?} ({:?})",
-    //             keycode,
-    //             "=>".green(),
-    //             sym,
-    //             sym.map_or(format!("<{}>", "invalid".red().bold()), |s| s.utf8())
-    //         );
-    //
-    //         self.keysym_map.push(sym.map(XKeysym::new));
-    //
-    //         keycode = Keycode(keycode.0 + 1);
-    //     }
-    // }
+    /////
+    // fn on_read_key_press<F>(conn: &xcb::Connection, mut f: F)
+    // where
+    //     F: FnMut(&xcb::KeyPressEvent) -> (),
+
+    /// Poll for next event. If no event is available, the nothing is returned
+    pub(crate) fn poll_next_keypress(&self) -> Option<CharacterMap> {
+        if let Ok(Some(event)) = self.conn.poll_for_event() {
+            return self.parse_event_to_charmap(&event);
+        }
+        None
+    }
+
+    /// Wait for next event
+    pub(crate) fn wait_next_keypress(&self) -> Result<CharacterMap> {
+        loop {
+            if let Ok(event) = self.conn.wait_for_event() {
+                if let Some(charmap) = self.parse_event_to_charmap(&event) {
+                    return Ok(charmap);
+                }
+            }
+        }
+    }
+
+    /// Parse a generic X `Event` to a `CharacterMap` for further parsing
+    pub(crate) fn parse_event_to_charmap(&self, event: &Event) -> Option<CharacterMap> {
+        match event {
+            Event::KeyPress(ev) => Handler::handle_keypress(ev, self),
+            Event::KeyRelease(ev) => None,
+            Event::ButtonPress(ev) => None,
+            Event::ButtonRelease(ev) => None,
+            _ => None,
+        }
+    }
+
+    /// Listen for the given `XKeyCode`s and return the first as a
+    /// `CharacterMap`
+    pub(crate) fn get_next_key(&self, keycodes: &[XKeyCode]) -> Result<CharacterMap> {
+        self.grab_key(keycodes);
+        let key = self
+            .wait_next_keypress()
+            .map_err(Error::PollNextCharacterMap)?;
+        self.ungrab_key(keycodes);
+
+        Ok(key)
+    }
+
+    /// Listen for any keypress, returning the first as a `CharacterMap`
+    pub(crate) fn get_next_any_key(&self) -> Result<CharacterMap> {
+        self.grab_keyboard().context("failed to grab keyboard")?;
+        let key = self
+            .wait_next_keypress()
+            .map_err(Error::PollNextCharacterMap)?;
+        self.ungrab_keyboard();
+
+        Ok(key)
+    }
+
+    ///////////////////////
 
     // /// Return the modifier-field code from a specified
     // /// [`Keycode`](xcb::Keycode)
@@ -488,51 +653,7 @@ impl<'a> Keyboard<'a> {
     //     modfield
     // }
 
-    // fn get_keycode(&self, xcode: xkb::Keycode) -> key::Code {
-    //     let xcode = xcode as usize;
-    //     if xcode >= self.keycode_table.len() {
-    //         eprintln!("keycode 0x{:x} is out of bounds", xcode);
-    //         return key::Code::Unknown;
-    //     }
-    //     self.keycode_table[xcode]
-    // }
-
     //////////////////////////////////////////////////////////////////////
-
-    // fn get_keysym(&self, xsym: xkb::Keysym) -> key::Sym {
-    //     if xsym >= 0x20 && xsym < 0x80 {
-    //         let mut xsym = xsym;
-    //         if xsym >= 0x61 && xsym <= 0x7a {
-    //             xsym &= !(key::SYM_LATIN1_SMALL_MASK as u32);
-    //         }
-    //         unsafe { mem::transmute(xsym) }
-    //     } else if xsym >= xkb::KEY_F1 && xsym <= xkb::KEY_F24 {
-    //         unsafe { mem::transmute((key::Sym::F1 as u32) + (xsym - xkb::KEY_F1))
-    // }     } else if let Some(k) = self.keysym_map.get(&xsym) {
-    //         *k
-    //     } else {
-    //         key::Sym::Unknown
-    //     }
-    // }
-
-    // /// Return the keysym from the keycode
-    // pub(crate) fn keycode_to_keysym(&self, keycode: Keycode) -> Option<XKeysym> {
-    //     let idx = (keycode.0 - self.setup.min_keycode().0) as usize;
-    //
-    //     if idx <= self.setup.max_keycode().0 as usize {
-    //         self.keysym_map[index]
-    //     } else {
-    //         None
-    //     }
-    // }
-
-    // /// Return the keycode from the keysym
-    // pub(crate) fn keycode_from_keysym2(&self, keysym: XKeysym) -> Option<Keycode>
-    // {     self.keysym_map
-    //         .iter()
-    //         .position(|e| e == Some(keysym))
-    //         .map(|pos| (self.setup.min_keycode().0 + (pos as u32)) as Keycode)
-    // }
 
     // /// Return the keycode from the keysym. Examples of what it is parsing
     // /// can be found from the output of `xmodmap -pki`
@@ -627,17 +748,4 @@ impl<'a> Keyboard<'a> {
     //         event.locked_group() as xkb::LayoutIndex,
     //     );
     // }
-
-    // /// Read the next keypress
-    // pub(crate) fn next_keypress(&self) -> Result<Option<KeyPressParseAttempt>> {
-    //     if let Some(event) = self.conn.poll_for_event() {
-    //         let attempt = self.attempt_to_parse_as_keypress(event);
-    //         if let Ok(Some(_)) = attempt {
-    //             return attempt;
-    //         }
-    //     }
-    //
-    //     Ok(self.conn.has_error().map(|_| None)?)
-    // }
-    //
 }

@@ -11,7 +11,7 @@ pub(crate) fn initialize_logging(args: &Opts) {
     ONCE.call_once(|| {
         // This provides much better backtraces, in a Python manner. This makes it
         // easier to see exactly where errors have occured and is useful with this crate
-        // because a lot of the commands are C-bindings to the X-Server
+        // because of the communication with the X-Server
         better_panic::install();
         panic::set_hook(Box::new(|panic_info| {
             better_panic::Settings::auto().create_panic_handler()(panic_info);

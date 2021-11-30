@@ -12,13 +12,15 @@ use x11rb::{
 
 #[derive(Debug, Error)]
 pub(crate) enum Error {
-    #[error("failed to get next item in screen iterator")]
-    RootNext,
     #[error("failed to connect to the X11 server: {0}")]
     Connection(#[from] ConnectError),
 }
 
-/// Setup X11 connection
-pub(crate) fn setup_connection() -> Result<(RustConnection, usize), Error> {
-    RustConnection::connect(None).map_err(Error::Connection)
+pub(crate) struct XUtility;
+
+impl XUtility {
+    /// Setup X11 connection
+    pub(crate) fn setup_connection() -> Result<(RustConnection, usize), Error> {
+        RustConnection::connect(None).map_err(Error::Connection)
+    }
 }

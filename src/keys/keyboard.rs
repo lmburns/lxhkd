@@ -1,6 +1,6 @@
 use super::{
     event_handler::Handler,
-    keys::{self, CharacterMap, XKeyCode},
+    keys::{self, CharacterMap, ModifierMask, XKeyCode},
     keysym::{KeysymHash, XKeysym},
 };
 use crate::{
@@ -25,7 +25,10 @@ use x11rb::{
     properties,
     protocol::{
         self,
-        xkb::{self, ConnectionExt as _, GetMapReply, KeyModMap, KeySymMap, MapPart, ID},
+        xkb::{
+            self, ConnectionExt as _, GetControlsReply, GetMapReply, KeyModMap, KeySymMap, MapPart,
+            ID,
+        },
         xproto::{
             self, ConnectionExt, EventMask, GetKeyboardMappingReply, Keycode, Keysym, ModMask,
         },
@@ -36,8 +39,9 @@ use x11rb::{
 };
 
 // TODO: GetControlsReply for key repeat
-// SetControlsRequest
 // ListComponentsReply = keymaps keycodes
+// GetDeviceKeyMappingReply , xinput = keysyms
+// GetDeviceModifierMappingReply , xinput = keymaps
 
 #[derive(Debug, Error)]
 pub(crate) enum Error {
@@ -79,17 +83,21 @@ pub(crate) enum Error {
 /// State of the keyboard
 pub(crate) struct Keyboard<'a> {
     /// Connection to the X-Server
-    conn:               &'a RustConnection,
+    conn:                &'a RustConnection,
     /// Root window.
-    root:               xproto::Window,
+    root:                xproto::Window,
     /// The characters, keysyms, etc making up the `Keyboard`
-    pub(crate) charmap: Vec<CharacterMap>,
+    pub(crate) charmap:  Vec<CharacterMap>,
     /// The device's ID
-    device_id:          Xid,
+    device_id:           Xid,
     /// The minimum keycode
-    min_keycode:        u8,
+    min_keycode:         u8,
     /// The maximum keycode
-    max_keycode:        u8,
+    max_keycode:         u8,
+    /// The delay in which a key begins repeating
+    autorepeat_delay:    u16,
+    /// The interval at which a key repeats
+    autorepeat_interval: u16,
 }
 
 impl<'a> Keyboard<'a> {
@@ -99,19 +107,6 @@ impl<'a> Keyboard<'a> {
         let root = screen.roots[screen_num].clone().root;
 
         // TODO: query XF86 ext
-
-        // conn.xkb_get_controls(ID::USE_CORE_KBD.into());
-        // conn.xkb_set_controls(device_id, affect_internal_real_mods,
-        // internal_real_mods, affect_ignore_lock_real_mods, ignore_lock_real_mods,
-        // affect_internal_virtual_mods, internal_virtual_mods,
-        // affect_ignore_lock_virtual_mods, ignore_lock_virtual_mods,
-        // mouse_keys_dflt_btn, groups_wrap, access_x_options, affect_enabled_controls,
-        // enabled_controls, change_controls, repeat_delay, repeat_interval,
-        // slow_keys_delay, debounce_delay, mouse_keys_delay, mouse_keys_interval,
-        // mouse_keys_time_to_max, mouse_keys_max_speed, mouse_keys_curve,
-        // access_x_timeout, access_x_timeout_mask, access_x_timeout_values,
-        // access_x_timeout_options_mask, access_x_timeout_options_values,
-        // per_key_repeat)
 
         let (xkb_min, xkb_max) = xkb::X11_XML_VERSION;
 
@@ -160,9 +155,12 @@ impl<'a> Keyboard<'a> {
             device_id: 0,
             min_keycode: screen.min_keycode,
             max_keycode: screen.max_keycode,
+            autorepeat_interval: 0,
+            autorepeat_delay: 0,
         };
 
         keyboard.generate_charmap()?;
+        keyboard.set_controls()?;
 
         Ok(keyboard)
     }
@@ -180,6 +178,76 @@ impl<'a> Keyboard<'a> {
             .context("failed to get XKB `GetKeyboardMappingReply`")?
             .reply()
             .context("failed to get XKB `GetKeyboardMappingReply` reply")
+    }
+
+    /// Get the `GetControlsReply` which has the key-repeat-delay and and the
+    /// key-repeat-interval
+    pub(crate) fn get_controls_reply(&self) -> Result<GetControlsReply> {
+        // repeat_delay: 300,
+        // repeat_interval: 20,
+        self.conn
+            .xkb_get_controls(ID::USE_CORE_KBD.into())
+            .context("failed to get XKB `GetControlsReply`")?
+            .reply()
+            .context("failed to get XKB `GetControlsReply` reply")
+    }
+
+    // TODO: Fix this
+    // XkbSetControls: https://code.woboq.org/qt5/include/X11/XKBlib.h.html
+
+    /// Set the key repeat-delay and repeat-interval
+    pub(crate) fn set_controls(&mut self) -> Result<()> {
+        let reply = self.get_controls_reply()?;
+        // println!("DELAY BEFORE: {}", reply.repeat_delay);
+        // println!("INTERVAL BEFORE: {}", reply.repeat_interval);
+        // self.grab_keyboard()?;
+
+        self.autorepeat_delay = reply.repeat_delay;
+        self.autorepeat_interval = reply.repeat_interval;
+
+
+        self.conn
+            .xkb_set_controls(
+                ID::USE_CORE_KBD.into(),
+                0_u8,                                  // affect_internal_real_mods
+                reply.internal_mods_real_mods,         // internal_real_mods
+                0_u8,                                  // affect_ignore_lock_real_mods
+                reply.ignore_lock_mods_real_mods,      // ignore_lock_real_mods
+                0_u8,                                  // affect_internal_virtual_mods
+                reply.internal_mods_vmods,             // internal_virtual_mods
+                0_u8,                                  // affect_ignore_lock_virtual_mods
+                reply.ignore_lock_mods_vmods,          // ignore_lock_virtual_mods
+                reply.mouse_keys_dflt_btn,             // mouse_keys_dflt_btn
+                reply.groups_wrap,                     // groups_wrap
+                reply.access_x_option,                 // access_x_options
+                0_u16,                                 // affect_enabled_controls
+                reply.enabled_controls,                // enabled_controls
+                0_u32,                                 // change_controls
+                500_u16,                               // repeat_delay
+                1000_u16,                              // repeat_interval
+                reply.slow_keys_delay,                 // slow_keys_delay
+                reply.debounce_delay,                  // debounce_delay
+                reply.mouse_keys_delay,                // mouse_keys_delay
+                reply.mouse_keys_interval,             // mouse_keys_interval
+                reply.mouse_keys_time_to_max,          // mouse_keys_time_to_max
+                reply.mouse_keys_max_speed,            // mouse_keys_max_speed
+                reply.mouse_keys_curve,                // mouse_keys_curve
+                reply.access_x_timeout,                // access_x_timeout
+                reply.access_x_timeout_mask,           // access_x_timeout_mask
+                reply.access_x_timeout_values,         // access_x_timeout_values
+                reply.access_x_timeout_options_mask,   // access_x_timeout_options_mask
+                reply.access_x_timeout_options_values, // access_x_timeout_options_values
+                &reply.per_key_repeat,                 // per_key_repeat
+            )
+            .context("failed to set XKB controls")?;
+
+        // self.ungrab_keyboard();
+
+        // let reply = self.get_controls_reply()?;
+        // println!("DELAY AFTER: {}", reply.repeat_delay);
+        // println!("INTERVAL AFTER: {}", reply.repeat_interval);
+
+        Ok(())
     }
 
     /// Get the `GetMapReply`. Provides the minimum and maximum keycode, as well
@@ -309,8 +377,6 @@ impl<'a> Keyboard<'a> {
         }
 
         // "L1", "L2"... get added multiple times with different `modmask`
-
-        // self.generate_real_mods();
 
         Ok(())
     }
@@ -468,7 +534,9 @@ impl<'a> Keyboard<'a> {
             .reply()
             .context("failed to get reply after grabbing keyboard")?;
 
-        if reply.status != xproto::GrabStatus::SUCCESS {
+        if reply.status == xproto::GrabStatus::ALREADY_GRABBED {
+            log::info!("the keyboard is already grabbed");
+        } else if reply.status != xproto::GrabStatus::SUCCESS {
             lxhkd_fatal!("failed to grab keyboard. Replied with unsuccessful status");
         }
 
@@ -486,14 +554,15 @@ impl<'a> Keyboard<'a> {
     pub(crate) fn grab_key1(&self, keycodes: &[XKeyCode]) {
         for modifier in &[0, u16::from(ModMask::M2)] {
             for key in keycodes {
+                let mut mask = key.mask;
+                if *modifier != 0 {
+                    mask.combine_u16(*modifier);
+                }
+
                 if let Err(e) = self.conn.grab_key(
                     false,
                     self.root,
-                    if *modifier == 0 {
-                        key.mask
-                    } else {
-                        key.mask | *modifier
-                    },
+                    mask,
                     key.code,
                     xproto::GrabMode::ASYNC,
                     xproto::GrabMode::ASYNC,
@@ -580,6 +649,9 @@ impl<'a> Keyboard<'a> {
             Event::KeyRelease(ev) => None,
             Event::ButtonPress(ev) => None,
             Event::ButtonRelease(ev) => None,
+            Event::Error(e) => {
+                lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
+            },
             _ => None,
         }
     }

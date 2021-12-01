@@ -11,6 +11,7 @@
 //  - https://www.x.org/releases/X11R7.6/doc/libX11/specs/XKB/xkblib.html
 
 use super::keysym::KeysymHash;
+use crate::parse::parser::{Token, TokenizedLine};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -25,12 +26,14 @@ use x11rb::{
     connection,
     connection::{Connection, RequestConnection},
     errors::ReplyError,
-    properties, protocol,
+    properties,
     protocol::{
+        self,
         xkb::{self, ConnectionExt as _, GetMapReply, KeyModMap, MapPart, ID},
         xproto::{
-            self, ButtonPressEvent, ButtonReleaseEvent, ConnectionExt, EventMask, KeyPressEvent,
-            Keycode, Keysym, ModMask, MotionNotifyEvent,
+            self, Button, ButtonIndex, ButtonMask, ButtonPressEvent, ButtonReleaseEvent,
+            ConnectionExt, EventMask, KeyPressEvent, KeyReleaseEvent, Keycode, Keysym, ModMask,
+            MotionNotifyEvent,
         },
         xtest,
     },
@@ -42,28 +45,22 @@ use x11rb::{
 pub(crate) enum Error {
     #[error("failed to lookup keysym {0:?}")]
     LookupKeysymHash(Keysym),
+    #[error("failed to lookup keysym {0:?}")]
+    InvalidButton(Button),
 }
 
-pub(crate) type KeycodeMask = u16;
+// TODO: Add hyper and meh
 
 /// A key press (code) and the held modifiers
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub(crate) struct XKeyCode {
     /// The held mask of the modifiers
-    pub(crate) mask: KeycodeMask,
+    pub(crate) mask: ModifierMask,
     /// The key code that was held
     pub(crate) code: Keycode,
 }
 
 impl XKeyCode {
-    /// Remove the modifier given (used with Scroll_Lock/Num_Lock)
-    pub(crate) fn ignore_modifier(self, mask: ModMask) -> Self {
-        Self {
-            mask: self.mask & !(u16::from(mask)),
-            code: self.code,
-        }
-    }
-
     /// Convert `XKeyCode` to a `CharacterMap`
     pub(crate) fn to_charmap(self, charmaps: &[CharacterMap]) -> Option<CharacterMap> {
         charmaps.iter().find(|c| self.code == c.code).cloned()
@@ -71,9 +68,9 @@ impl XKeyCode {
 }
 
 impl From<CharacterMap> for XKeyCode {
-    fn from(charmap: CharacterMap) -> XKeyCode {
-        XKeyCode {
-            mask: charmap.modmask,
+    fn from(charmap: CharacterMap) -> Self {
+        Self {
+            mask: ModifierMask::new(charmap.modmask),
             code: charmap.code,
         }
     }
@@ -82,7 +79,7 @@ impl From<CharacterMap> for XKeyCode {
 impl From<KeyPressEvent> for XKeyCode {
     fn from(event: KeyPressEvent) -> Self {
         Self {
-            mask: event.state,
+            mask: ModifierMask::new(event.state),
             code: event.detail,
         }
     }
@@ -91,9 +88,15 @@ impl From<KeyPressEvent> for XKeyCode {
 impl From<&KeyPressEvent> for XKeyCode {
     fn from(event: &KeyPressEvent) -> Self {
         Self {
-            mask: event.state,
+            mask: ModifierMask::new(event.state),
             code: event.detail,
         }
+    }
+}
+
+impl fmt::Display for XKeyCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "code: {} mask: {}", self.code, self.mask)
     }
 }
 
@@ -121,12 +124,22 @@ impl ModifierMask {
     }
 
     /// Combine masks
-    pub(crate) fn combine(&mut self, other: ModifierMask) {
+    pub(crate) fn combine_u16(&mut self, other: u16) {
+        self.mask |= other;
+    }
+
+    /// Combine masks
+    pub(crate) fn combine_modmask(&mut self, other: ModifierMask) {
         self.mask |= other.mask;
     }
 
+    /// Ignore modifiers
+    pub(crate) fn ignore(&mut self, mask: u16) {
+        self.mask &= !(mask);
+    }
+
     /// Filter `lock` modifiers
-    pub(crate) fn filter_igored(&mut self) {
+    pub(crate) fn filter_ignored(&mut self) {
         self.mask &= !(u16::from(ModMask::LOCK | ModMask::M2));
     }
 
@@ -264,100 +277,142 @@ impl BitOr for ModifierMask {
     }
 }
 
-///////////////////////
+impl FromStr for ModifierMask {
+    type Err = ();
 
-// TODO: Add hyper and meh
-
-/// Builtin (real) modifiers available within XOrg. These modifiers can be set
-/// to anything, which is why there is not an `Alt`, `Control_L`, `Hyper_R`, etc
-/// available.
-///
-/// `bool`s are needed here to combine multiple modifiers
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Hash)]
-pub(crate) struct KeyModifier {
-    pub(crate) shift: bool,
-    pub(crate) lock:  bool,
-    pub(crate) ctrl:  bool,
-    pub(crate) mod1:  bool, // alt
-    pub(crate) mod2:  bool, // num_lock
-    pub(crate) mod3:  bool,
-    pub(crate) mod4:  bool, // super
-    pub(crate) mod5:  bool, // iso_level3
-    pub(crate) any:   bool,
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().trim() {
+            "shift" => Ok(Self {
+                mask: ModMask::SHIFT.into(),
+            }),
+            "lock" => Ok(Self {
+                mask: ModMask::LOCK.into(),
+            }),
+            "control" | "ctrl" => Ok(Self {
+                mask: ModMask::CONTROL.into(),
+            }),
+            "mod1" => Ok(Self {
+                mask: ModMask::M1.into(),
+            }),
+            "mod2" => Ok(Self {
+                mask: ModMask::M2.into(),
+            }),
+            "mod3" => Ok(Self {
+                mask: ModMask::M3.into(),
+            }),
+            "mod4" => Ok(Self {
+                mask: ModMask::M4.into(),
+            }),
+            "mod5" => Ok(Self {
+                mask: ModMask::M5.into(),
+            }),
+            "any" => Ok(Self {
+                mask: ModMask::ANY.into(),
+            }),
+            _ => Ok(Self { mask: 0 }),
+        }
+    }
 }
 
-// impl KeyModifier {
-//     /// Determine if the modifier key was held
-//     pub(crate) fn was_held(self, mask: u16) -> bool {
-//         mask & u16::from(self) > 0
-//     }
-//
-//     /// Combine masks
-//     pub(crate) fn combine(&mut self, other: Self) {
-//         self.inner = ModMask(self.inner.0 as KeyCodeMask | other.inner.0 as
-// KeyCodeMask);     }
-// }
-//
-// impl From<CharacterMap> for KeyModifier {
-//     fn from(charmap: CharacterMap) -> KeyModifier {
-//         KeyModifier::from(charmap.modmask)
-//     }
-// }
-//
-// impl FromStr for KeyModifier {
-//     type Err = ();
-//
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         Ok(match s.to_ascii_lowercase().trim() {
-//             "shift" => Self::Shift,
-//             "lock" => Self::Lock,
-//             "ctrl" | "control" => Self::Ctrl,
-//             "mod1" => Self::Mod1,
-//             "mod2" => Self::Mod2,
-//             "mod3" => Self::Mod3,
-//             "mod4" => Self::Mod4,
-//             "mod5" => Self::Mod5,
-//             "any" => Self::Any,
-//             _ => Self::None,
-//         })
-//     }
-// }
+impl fmt::Display for ModifierMask {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.mask)
+    }
+}
 
-// impl From<KeyModifier> for u16 {
-//     fn from(modifier: KeyModifier) -> u16 {
-//         let mut mask = 0;
-//
-//         if modifier.shift
-//     }
-// }
+///////////////////////
 
-// impl From<u16> for KeyModifier {
-//     // NumLock = Mod2
-//     fn from(mask: u16) -> KeyModifier {
-//         match mask {
-//             s if s == u16::from(ModMask::SHIFT) => KeyModifier::Shift,
-//             s if s == u16::from(ModMask::LOCK) => KeyModifier::Lock,
-//             s if s == u16::from(ModMask::CONTROL) => KeyModifier::Ctrl,
-//             s if s == u16::from(ModMask::M1) => KeyModifier::Mod1,
-//             s if s == u16::from(ModMask::M2) => KeyModifier::Mod2,
-//             s if s == u16::from(ModMask::M3) => KeyModifier::Mod3,
-//             s if s == u16::from(ModMask::M4) => KeyModifier::Mod4,
-//             s if s == u16::from(ModMask::M5) => KeyModifier::Mod5,
-//             s if s == u16::from(ModMask::ANY) => KeyModifier::Any,
-//             _ => KeyModifier::None,
+// /// The available buttons on a mouse. This is more easily represented as an
+// /// enum, as compared to the `XKeyCode`, which has it's own hash table to
+// lookup /// based on codes
+// #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+// pub(crate) enum MouseButton {
+//     Left,       // 1
+//     Middle,     // 2
+//     Right,      // 3
+//     ScrollUp,   // 4
+//     ScrollDown, // 5
+// }
+//
+// impl From<MouseButton> for u8 {
+//     fn from(b: MouseButton) -> u8 {
+//         match b {
+//             MouseButton::Left => 1,
+//             MouseButton::Middle => 2,
+//             MouseButton::Right => 3,
+//             MouseButton::ScrollUp => 4,
+//             MouseButton::ScrollDown => 5,
 //         }
 //     }
 // }
 
-// /// The UTF-8 representation of a key. This is used with the configuration
-// file and allows for the conversion of something like `Hyper_L` to its
-// corresponding `Keycode` `0xffed` #[derive(Debug, PartialEq, Eq, Hash, Clone,
-// Copy)] pub(crate) struct Key {
-//     /// The modifiers in `String` format
-//     pub(crate) modifiers: KeyModifier,
-//     /// The `Keysym` in `String` format
-//     pub(crate) keysym:
-// }
+///////////////////////
+
+/// A wrapper around a `Button`, which is a type for `u8`
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(crate) struct ButtonCode(u8);
+
+impl fmt::Display for ButtonCode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<ButtonCode> for u8 {
+    fn from(b: ButtonCode) -> u8 {
+        b.0
+    }
+}
+
+impl FromStr for ButtonCode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().trim() {
+            "left" | "mouse1" => Ok(Self(1)),
+            "middle" | "mouse2" => Ok(Self(2)),
+            "right" | "mouse3" => Ok(Self(3)),
+            "scrollup" | "up" | "mouse4" => Ok(Self(4)),
+            "scrolldown" | "down" | "mouse5" => Ok(Self(5)),
+            _ => Ok(Self(0)),
+        }
+    }
+}
+
+/// A button press (code) on a mouse and the held modifiers
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub(crate) struct XButton {
+    /// The held mask of the modifiers (TODO: Does this need to be ButtonMask?)
+    pub(crate) mask: ModifierMask,
+    /// The code of the button that was pressed
+    pub(crate) code: ButtonCode,
+}
+
+impl From<ButtonPressEvent> for XButton {
+    fn from(event: ButtonPressEvent) -> Self {
+        Self {
+            mask: ModifierMask::new(event.state),
+            code: ButtonCode(event.detail),
+        }
+    }
+}
+
+impl From<&ButtonPressEvent> for XButton {
+    fn from(event: &ButtonPressEvent) -> Self {
+        Self {
+            mask: ModifierMask::new(event.state),
+            code: ButtonCode(event.detail),
+        }
+    }
+}
+
+impl fmt::Display for XButton {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "code: {} mask: {}", self.code, self.mask)
+    }
+}
+
+///////////////////////
 
 // TODO: Create something for Mods
 
@@ -476,6 +531,56 @@ impl CharacterMap {
     /// Return the `CharacterMap` corresponding to the `XKeyCode` given
     pub(crate) fn charmap_from_xkeycode(charmaps: &[Self], keycode: XKeyCode) -> Option<Self> {
         charmaps.iter().find(|c| c.code == keycode.code).cloned()
+    }
+
+    /// Return a vector of `CharacterMap`s from a
+    /// [`TokenizedLine`](crate::parse::parser::TokenizedLine)
+    pub(crate) fn charmap_from_tokenizedline<'a>(
+        charmaps: &'a [Self],
+        line: &TokenizedLine,
+    ) -> Vec<Self> {
+        let len = line.line.n_keys;
+        let mut res = vec![];
+
+        let match_modmask = |mask: u16, or: &'a str| -> &'a str {
+            charmaps
+                .iter()
+                .find(|m| m.modmask == (1 << mask))
+                .map_or(or, |a| &a.utf)
+        };
+
+        for tok_vec in &line.tokenized {
+            for tok in tok_vec {
+                if let Token::Text(text) = tok {
+                    let mapped = match text.trim() {
+                        "super" | "lsuper" => "Super_L",
+                        "rsuper" => "Super_R",
+                        "hyper" | "lhyper" => "Hyper_L",
+                        "rhyper" => "Hyper_R",
+                        "alt" | "lalt" => "Alt_L",
+                        "ralt" => "Alt_R",
+                        "shift" | "lshift" => "Shift_L",
+                        "rshift" => "Shift_R",
+                        "ctrl" | "lctrl" => "Control_L",
+                        "rctrl" => "Control_R",
+                        "mod1" => match_modmask(3, "Alt_L"),
+                        "mod2" => match_modmask(4, "Num_Lock"),
+                        "mod3" => match_modmask(5, "Hyper_L"), // This one is probably not set
+                        // on most people's keyboards
+                        "mod4" => match_modmask(6, "Super_L"),
+                        "mod5" => match_modmask(7, "ISO_Level3_Lock"),
+
+                        other => other,
+                    };
+
+                    if let Some(charmap) = charmaps.iter().find(|c| c.utf == mapped).cloned() {
+                        res.push(charmap);
+                    }
+                }
+            }
+        }
+
+        res
     }
 }
 

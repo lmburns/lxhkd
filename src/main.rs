@@ -25,7 +25,7 @@
     pointer_structural_match,
     private_in_public,
     semicolon_in_expressions_from_macros,
-    single_use_lifetimes,
+    // single_use_lifetimes,
     trivial_casts,
     trivial_numeric_casts,
     unaligned_references,
@@ -65,13 +65,15 @@ mod types;
 mod utils;
 mod xcb_utils;
 
+use crate::keys::keys::CharacterMap;
 use anyhow::{Context, Result};
 use clap::Parser;
 use cli::Opts;
+use colored::Colorize;
 use config::Config;
 use keys::keyboard::Keyboard;
+use parse::parser::Line;
 use xcb_utils::XUtility;
-use colored::Colorize;
 
 fn main() -> Result<()> {
     if users::get_effective_uid() == 0 || users::get_current_uid() == 0 {
@@ -82,8 +84,6 @@ fn main() -> Result<()> {
     let args = Opts::parse();
     utils::initialize_logging(&args);
 
-    println!("config: {:#?}", config);
-
     let (conn, screen_num) = XUtility::setup_connection()?;
     let keyboard = Keyboard::new(&conn, screen_num)?;
 
@@ -91,7 +91,20 @@ fn main() -> Result<()> {
         keyboard.list_keysyms()?;
     }
 
-    // println!("char: {:#?}", keyboard.charmap());
+    if let Some(bindings) = config.bindings {
+        let lines = bindings.keys();
+        for (mut idx, l) in lines.enumerate() {
+            idx += 1;
+
+            let line = Line::new(l, idx);
+            let tokenized = line.tokenize();
+
+            let charmap = CharacterMap::charmap_from_tokenizedline(&keyboard.charmap, &tokenized);
+
+            log::debug!("Line: {}", l);
+            log::debug!("Tokenized: {:#?}", charmap);
+        }
+    }
 
     Ok(())
 }

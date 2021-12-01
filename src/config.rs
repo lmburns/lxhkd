@@ -1,5 +1,6 @@
 use crate::keys::chord::{Chain, Chord};
 use anyhow::{Context, Result};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -35,19 +36,22 @@ pub(crate) struct GlobalSettings {
     pub(crate) autorepeat_interval: Option<usize>,
 }
 
-/// Configuration file to parse
+/// Configuration file to parse.
+///
+/// `IndexMap` is used to guarantee that if duplicate bindings are created by
+/// accident, the first one will be the one that is used
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub(crate) struct Config {
     /// Global settings
     #[serde(flatten)]
     pub(crate) global:   GlobalSettings,
     /// The mappings of keys to shell commands
-    pub(crate) bindings: Option<HashMap<String, String>>,
+    pub(crate) bindings: Option<IndexMap<String, String>>,
     /// The mappings of keys to other keybindings
-    pub(crate) remaps:   Option<HashMap<String, String>>,
+    pub(crate) remaps:   Option<IndexMap<String, String>>,
 
     /// Mappings of modifiers to one key when pressed & another when held down
-    pub(crate) xcape: Option<HashMap<String, String>>,
+    pub(crate) xcape: Option<IndexMap<String, String>>,
 }
 
 impl Config {
@@ -95,7 +99,7 @@ impl Config {
 }
 
 /// The action that a mapping will do
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub(crate) enum Action {
     /// A shell command    (i.e, opening a terminal)
     ShellCmd(String),

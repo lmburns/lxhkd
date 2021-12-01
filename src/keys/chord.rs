@@ -15,7 +15,7 @@ pub(crate) enum Error {
 
 /// The abstraction of a key on the keyboard plus a one or more modifiers being
 /// held down produces an [`XKeysym`](super::keysym::XKeysym)
-#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Clone, Copy)]
 pub(crate) struct Chord {
     /// The keysym of the chord
     keysym:  XKeysym,
@@ -105,7 +105,7 @@ impl Ord for Chord {
 // }
 
 /// A chain of [`Chord`](self::Chord)'s
-#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash)]
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash, Clone)]
 pub(crate) struct Chain {
     /// The chords that make up the chain
     chords: Vec<Chord>,

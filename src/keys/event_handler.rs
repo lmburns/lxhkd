@@ -1,14 +1,19 @@
 //! Handle `Events` sent from the X-Server
 
-use anyhow::{Result, Context};
 use super::{keyboard::Keyboard, keys::CharacterMap};
-use x11rb::protocol::xproto::KeyPressEvent;
+use anyhow::{Context, Result};
 use colored::Colorize;
+use x11rb::protocol::xproto::KeyPressEvent;
+
+// ================== Handler =====================
 
 pub(crate) struct Handler;
 
 impl Handler {
-    pub(crate) fn handle_keypress(event: &KeyPressEvent, keyboard: &Keyboard) -> Option<CharacterMap> {
+    pub(crate) fn handle_keypress(
+        event: &KeyPressEvent,
+        keyboard: &Keyboard,
+    ) -> Option<CharacterMap> {
         // let kc = XKeyCode::from(ev);
         let keycode = event.detail;
         let mask = event.state;

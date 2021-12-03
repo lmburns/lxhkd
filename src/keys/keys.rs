@@ -1,4 +1,4 @@
-// TODO: Allow mouse buttons
+//! Keycodes, Modmask, and Mouse Buttons
 
 // Keysyms
 //  - https://wiki.linuxquestions.org/wiki/List_of_Keysyms_Recognised_by_Xmodmap
@@ -13,6 +13,8 @@
 use super::keysym::KeysymHash;
 use crate::parse::parser::{Token, TokenizedLine};
 use anyhow::{Context, Result};
+use colored::Colorize;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -31,8 +33,19 @@ use x11rb::{
         self,
         xkb::{self, ConnectionExt as _, GetMapReply, KeyModMap, MapPart, ID},
         xproto::{
-            self, Button, ButtonIndex, ButtonMask, ButtonPressEvent, ButtonReleaseEvent,
-            ConnectionExt, EventMask, KeyPressEvent, KeyReleaseEvent, Keycode, Keysym, ModMask,
+            self,
+            Button,
+            ButtonIndex,
+            ButtonMask,
+            ButtonPressEvent,
+            ButtonReleaseEvent,
+            ConnectionExt,
+            EventMask,
+            KeyPressEvent,
+            KeyReleaseEvent,
+            Keycode,
+            Keysym,
+            ModMask,
             MotionNotifyEvent,
         },
         xtest,
@@ -49,6 +62,9 @@ pub(crate) enum Error {
     InvalidButton(Button),
 }
 
+// ================== Keycode =====================
+
+// TODO: Allow mouse buttons
 // TODO: Add hyper and meh
 
 /// A key press (code) and the held modifiers
@@ -69,28 +85,19 @@ impl XKeyCode {
 
 impl From<CharacterMap> for XKeyCode {
     fn from(charmap: CharacterMap) -> Self {
-        Self {
-            mask: ModifierMask::new(charmap.modmask),
-            code: charmap.code,
-        }
+        Self { mask: ModifierMask::new(charmap.modmask), code: charmap.code }
     }
 }
 
 impl From<KeyPressEvent> for XKeyCode {
     fn from(event: KeyPressEvent) -> Self {
-        Self {
-            mask: ModifierMask::new(event.state),
-            code: event.detail,
-        }
+        Self { mask: ModifierMask::new(event.state), code: event.detail }
     }
 }
 
 impl From<&KeyPressEvent> for XKeyCode {
     fn from(event: &KeyPressEvent) -> Self {
-        Self {
-            mask: ModifierMask::new(event.state),
-            code: event.detail,
-        }
+        Self { mask: ModifierMask::new(event.state), code: event.detail }
     }
 }
 
@@ -100,7 +107,7 @@ impl fmt::Display for XKeyCode {
     }
 }
 
-/////////////////////////
+// ================== Modmask =====================
 
 /// Builtin (real) modifiers available within XOrg. These modifiers can be set
 /// to anything, which is why there is not an `Alt`, `Control_L`, `Hyper_R`, etc
@@ -251,9 +258,7 @@ impl BitXor for ModifierMask {
     type Output = ModifierMask;
 
     fn bitxor(self, rhs: ModifierMask) -> ModifierMask {
-        ModifierMask {
-            mask: self.mask ^ rhs.mask,
-        }
+        ModifierMask { mask: self.mask ^ rhs.mask }
     }
 }
 
@@ -261,9 +266,7 @@ impl BitAnd for ModifierMask {
     type Output = ModifierMask;
 
     fn bitand(self, rhs: ModifierMask) -> ModifierMask {
-        ModifierMask {
-            mask: self.mask & rhs.mask,
-        }
+        ModifierMask { mask: self.mask & rhs.mask }
     }
 }
 
@@ -271,9 +274,7 @@ impl BitOr for ModifierMask {
     type Output = ModifierMask;
 
     fn bitor(self, rhs: ModifierMask) -> ModifierMask {
-        ModifierMask {
-            mask: self.mask | rhs.mask,
-        }
+        ModifierMask { mask: self.mask | rhs.mask }
     }
 }
 
@@ -282,33 +283,15 @@ impl FromStr for ModifierMask {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().trim() {
-            "shift" => Ok(Self {
-                mask: ModMask::SHIFT.into(),
-            }),
-            "lock" => Ok(Self {
-                mask: ModMask::LOCK.into(),
-            }),
-            "control" | "ctrl" => Ok(Self {
-                mask: ModMask::CONTROL.into(),
-            }),
-            "mod1" => Ok(Self {
-                mask: ModMask::M1.into(),
-            }),
-            "mod2" => Ok(Self {
-                mask: ModMask::M2.into(),
-            }),
-            "mod3" => Ok(Self {
-                mask: ModMask::M3.into(),
-            }),
-            "mod4" => Ok(Self {
-                mask: ModMask::M4.into(),
-            }),
-            "mod5" => Ok(Self {
-                mask: ModMask::M5.into(),
-            }),
-            "any" => Ok(Self {
-                mask: ModMask::ANY.into(),
-            }),
+            "shift" => Ok(Self { mask: ModMask::SHIFT.into() }),
+            "lock" => Ok(Self { mask: ModMask::LOCK.into() }),
+            "control" | "ctrl" => Ok(Self { mask: ModMask::CONTROL.into() }),
+            "mod1" => Ok(Self { mask: ModMask::M1.into() }),
+            "mod2" => Ok(Self { mask: ModMask::M2.into() }),
+            "mod3" => Ok(Self { mask: ModMask::M3.into() }),
+            "mod4" => Ok(Self { mask: ModMask::M4.into() }),
+            "mod5" => Ok(Self { mask: ModMask::M5.into() }),
+            "any" => Ok(Self { mask: ModMask::ANY.into() }),
             _ => Ok(Self { mask: 0 }),
         }
     }
@@ -320,7 +303,7 @@ impl fmt::Display for ModifierMask {
     }
 }
 
-///////////////////////
+// ================ Button Code ===================
 
 // /// The available buttons on a mouse. This is more easily represented as an
 // /// enum, as compared to the `XKeyCode`, which has it's own hash table to
@@ -346,7 +329,7 @@ impl fmt::Display for ModifierMask {
 //     }
 // }
 
-///////////////////////
+// ================ Button Code ===================
 
 /// A wrapper around a `Button`, which is a type for `u8`
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -372,12 +355,14 @@ impl FromStr for ButtonCode {
             "left" | "mouse1" => Ok(Self(1)),
             "middle" | "mouse2" => Ok(Self(2)),
             "right" | "mouse3" => Ok(Self(3)),
-            "scrollup" | "up" | "mouse4" => Ok(Self(4)),
-            "scrolldown" | "down" | "mouse5" => Ok(Self(5)),
+            "scrollup" | "mouse4" => Ok(Self(4)),
+            "scrolldown" | "mouse5" => Ok(Self(5)),
             _ => Ok(Self(0)),
         }
     }
 }
+
+// ================== Buttons =====================
 
 /// A button press (code) on a mouse and the held modifiers
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -386,6 +371,13 @@ pub(crate) struct XButton {
     pub(crate) mask: ModifierMask,
     /// The code of the button that was pressed
     pub(crate) code: ButtonCode,
+}
+
+impl XButton {
+    /// Return the `ButtonCode`
+    pub(crate) fn code(self) -> u8 {
+        self.code.into()
+    }
 }
 
 impl From<ButtonPressEvent> for XButton {
@@ -412,7 +404,14 @@ impl fmt::Display for XButton {
     }
 }
 
-///////////////////////
+// ================== Key Info ====================
+
+// MouseKeys:  using the numeric pad keys to move the mouse;
+// StickyKeys: where modifiers will lock until the next key press
+// SlowKeys:   Have to be pressed for certain amout of time
+// BounceKeys: If pressed more than once in certain time, only on registers
+
+// ================ CharacterMap ==================
 
 // TODO: Create something for Mods
 
@@ -487,7 +486,7 @@ impl CharacterMap {
 
         Ok(Self {
             utf: hash
-                .get_keysym(keysym)
+                .get_str_from_keysym_code(keysym)
                 .ok_or(Error::LookupKeysymHash(keysym))?
                 .to_string(),
             code: keycode,
@@ -533,56 +532,18 @@ impl CharacterMap {
         charmaps.iter().find(|c| c.code == keycode.code).cloned()
     }
 
-    /// Return a vector of `CharacterMap`s from a
-    /// [`TokenizedLine`](crate::parse::parser::TokenizedLine)
-    pub(crate) fn charmap_from_tokenizedline<'a>(
-        charmaps: &'a [Self],
-        line: &TokenizedLine,
-    ) -> Vec<Self> {
-        let len = line.line.n_keys;
-        let mut res = vec![];
-
-        let match_modmask = |mask: u16, or: &'a str| -> &'a str {
-            charmaps
-                .iter()
-                .find(|m| m.modmask == (1 << mask))
-                .map_or(or, |a| &a.utf)
-        };
-
-        for tok_vec in &line.tokenized {
-            for tok in tok_vec {
-                if let Token::Text(text) = tok {
-                    let mapped = match text.trim() {
-                        "super" | "lsuper" => "Super_L",
-                        "rsuper" => "Super_R",
-                        "hyper" | "lhyper" => "Hyper_L",
-                        "rhyper" => "Hyper_R",
-                        "alt" | "lalt" => "Alt_L",
-                        "ralt" => "Alt_R",
-                        "shift" | "lshift" => "Shift_L",
-                        "rshift" => "Shift_R",
-                        "ctrl" | "lctrl" => "Control_L",
-                        "rctrl" => "Control_R",
-                        "mod1" => match_modmask(3, "Alt_L"),
-                        "mod2" => match_modmask(4, "Num_Lock"),
-                        "mod3" => match_modmask(5, "Hyper_L"), // This one is probably not set
-                        // on most people's keyboards
-                        "mod4" => match_modmask(6, "Super_L"),
-                        "mod5" => match_modmask(7, "ISO_Level3_Lock"),
-
-                        other => other,
-                    };
-
-                    if let Some(charmap) = charmaps.iter().find(|c| c.utf == mapped).cloned() {
-                        res.push(charmap);
-                    }
-                }
-            }
-        }
-
-        res
-    }
+    // /// Return a vector of `CharacterMap`s from a flattened `TokenizedLine`
+    // pub(crate) fn charmap_hash_from_flatoke<'a>(charmaps: &'a [Self], line:
+    // Vec<&Token>) -> IndexMap<Keycode, Self> {     let mut indexmap =
+    // IndexMap::new();
+    //
+    //     println!("LINE: {:#?}", line);
+    //
+    //     indexmap
+    // }
 }
+
+// ================ Helper Funcs ==================
 
 /// Get the `ModMask` of a `Keycode` based on the set modifiers found in
 /// [`KeyModMap`](x11rb::protocol::KeyModMap)

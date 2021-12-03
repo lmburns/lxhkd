@@ -1,7 +1,23 @@
 ---
+### The shell to run the commands in
 shell: zsh
+### The timeout between key presses
 timeout: 300
-key_repeat_rate: 50
+### The delay in which keys begin to repeat
+autorepeat_delay: 300
+### The speed in which keys repeat after the delay
+autorepeat_interval: 50
+### The file to write the log to
+log_dir: ${XDG_CONFIG_HOME}/lxhkd/log
 
-bindings:
-  super + t: notify-send -a lxhkd "it" "worked"
+### The mapping of keys to shell commands
+# bindings:
+#   super + t: notify-send -a lxhkd "it" "worked"
+
+### The mappings of keys to other keybindings
+# remaps:
+#   Caps_Lock: Hyper_L
+
+### Mappings of modifiers to one key when pressed & another when held down
+# xcape:
+#   Caps_Lock: Escape

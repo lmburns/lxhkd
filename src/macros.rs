@@ -1,3 +1,5 @@
+//! Macros for error/warning printing
+
 /// Expand to an error message
 #[macro_export]
 macro_rules! lxhkd_error {

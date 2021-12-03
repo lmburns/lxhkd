@@ -1,3 +1,5 @@
+//! Various utilities specifically dealing with X
+
 use crate::lxhkd_fatal;
 use anyhow::Result;
 use colored::Colorize;
@@ -15,6 +17,8 @@ pub(crate) enum Error {
     #[error("failed to connect to the X11 server: {0}")]
     Connection(#[from] ConnectError),
 }
+
+// ================== XUtility ====================
 
 pub(crate) struct XUtility;
 

@@ -1,11 +1,15 @@
+//! Configuration options
+
 use crate::keys::chord::{Chain, Chord};
 use anyhow::{Context, Result};
+use format_serde_error::SerdeError;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::HashMap,
-    env, fs,
+    env,
+    fs,
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -15,26 +19,39 @@ use std::{
 const CONFIG_FILE: &str = "lxhkd.yml";
 
 // TODO: Test configuration and make sure no crash if empty
+// TODO: Allow for specifying of config file
 
-// TODO: The rate at which keys are repeated
-// TODO: Allow for if keys are pressed they're one thing and if they're held
-// then they're another
+// 
 // - https://unix.stackexchange.com/questions/320373/how-to-remap-keyboard-keys-based-on-how-long-you-hold-the-key/320474
+
+// =============== GlobalSettings =================
 
 /// Global configuration settings
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub(crate) struct GlobalSettings {
     /// The shell to use for running commands
-    pub(crate) shell:               Option<String>,
+    pub(crate) shell: Option<String>,
+
+    // TODO: Implement this
     /// The timeout between keypresses
-    pub(crate) timeout:             Option<usize>,
+    pub(crate) timeout: Option<usize>,
+
+    // TODO: Implement this
     /// The delay in which keys begin to repeat
     #[serde(alias = "autorepeat-delay")]
-    pub(crate) autorepeat_delay:    Option<usize>,
+    pub(crate) autorepeat_delay: Option<usize>,
+
+    // TODO: Implement this
     /// The speed in which keys repeat after the delay
     #[serde(alias = "autorepeat-interval")]
     pub(crate) autorepeat_interval: Option<usize>,
+
+    /// The directory to write the log to
+    #[serde(alias = "log-dir")]
+    pub(crate) log_dir: Option<PathBuf>,
 }
+
+// =================== Config =====================
 
 /// Configuration file to parse.
 ///
@@ -86,8 +103,12 @@ impl Config {
     /// Load the configuration file from a given path
     pub(crate) fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
-        let file = fs::read(&path).context("failed to read config file")?;
-        serde_yaml::from_slice(&file).context("failed to deserialize config file")
+
+        // let file = fs::read(&path).context("failed to read config file")?;
+        // serde_yaml::from_slice(&file).context("failed to deserialize config file")
+
+        let file = fs::read_to_string(&path).context("failed to read config file")?;
+        Ok(serde_yaml::from_str(&file).map_err(|e| SerdeError::new(file, e))?)
     }
 
     /// Load the default configuration file
@@ -97,6 +118,8 @@ impl Config {
         Self::create_default(path)
     }
 }
+
+// =================== Action =====================
 
 /// The action that a mapping will do
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -156,6 +179,8 @@ impl Action {
         }
     }
 }
+
+// ================ Helper Funcs ==================
 
 /// Get the default location of the configuration file
 pub(crate) fn get_config_path() -> Result<PathBuf> {

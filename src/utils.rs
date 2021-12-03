@@ -1,52 +1,136 @@
+//! Various helper-utilities
+
 use crate::cli::Opts;
-use env_logger::fmt::Color as LogColor;
+use anyhow::{Context, Result};
+use clap::crate_name;
+use flexi_logger::{
+    opt_format,
+    style,
+    AdaptiveFormat,
+    Age,
+    Cleanup,
+    Criterion,
+    DeferredNow,
+    Duplicate,
+    FileSpec,
+    FlexiLoggerError,
+    Level,
+    Logger,
+    LoggerHandle,
+    Naming,
+    Record,
+    WriteMode,
+};
 use log::LevelFilter;
-use std::{panic, sync::Once, io::Write};
+use shellexpand::LookupError;
+use std::{
+    borrow::Cow,
+    env,
+    io::{self, Write},
+    panic,
+    path::PathBuf,
+    sync::Once,
+};
 
-/// Used to initialize logging
-static ONCE: Once = Once::new();
+// /// Used to initialize logging
+// static ONCE: Once = Once::new();
 
-/// Initialize the logger in a pretty fashion
-pub(crate) fn initialize_logging(args: &Opts) {
-    ONCE.call_once(|| {
-        // This provides much better backtraces, in a Python manner. This makes it
-        // easier to see exactly where errors have occured and is useful with this crate
-        // because of the communication with the X-Server
+/// Initializes logging for this crate
+pub(crate) fn initialize_logging(log_dir: Option<PathBuf>, args: &Opts) -> Result<PathBuf> {
+    /// Customize the format of the log (colored)
+    fn colored_format(
+        w: &mut dyn Write,
+        now: &mut DeferredNow,
+        record: &Record,
+    ) -> Result<(), io::Error> {
+        let level = record.level();
+        write!(
+            w,
+            "[{:>}] {:<5} [{}:{}]: {}",
+            style(level, now.now().format("%Y-%m-%d %H:%M:%S")),
+            style(level, level),
+            style(Level::Trace, record.file().unwrap_or("<unnamed>")),
+            record.line().unwrap_or(0),
+            &record.args() // style(level, &record.args())
+        )
+    }
+
+    /// Customize the format of the log (uncolored)
+    fn uncolored_format(
+        w: &mut dyn Write,
+        now: &mut DeferredNow,
+        record: &Record,
+    ) -> Result<(), io::Error> {
+        // Strip the ansi sequences that I have put in log messages using the `colored`
+        // crate when writing to a file. I'm not sure that this gets ran when writing to
+        // a file
+        write!(
+            w,
+            "[{:>}] {:>} [{}:{}]: {}",
+            now.now().format("%Y-%m-%d %H:%M:%S"),
+            record.level(),
+            record.file().unwrap_or("<unnamed>"),
+            record.line().unwrap_or(0),
+            String::from_utf8(strip_ansi_escapes::strip(
+                &record.args().to_string().as_bytes()
+            )?)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+        )
+    }
+
+    // This provides much better backtraces, in a Python manner. This makes it
+    // easier to see exactly where errors have occured and is useful with this crate
+    // because of the communication with the X-Server
+    if cfg!(debug_assertions) {
         better_panic::install();
         panic::set_hook(Box::new(|panic_info| {
             better_panic::Settings::auto().create_panic_handler()(panic_info);
         }));
+    }
 
-        env_logger::Builder::new()
-            .format_timestamp(None)
-            .format(|buf, record| {
-                let mut style = buf.style();
-                let level_style = match record.level() {
-                    log::Level::Warn => style.set_color(LogColor::Yellow),
-                    log::Level::Info => style.set_color(LogColor::Green),
-                    log::Level::Debug => style.set_color(LogColor::Magenta),
-                    log::Level::Trace => style.set_color(LogColor::Cyan),
-                    log::Level::Error => style.set_color(LogColor::Red),
-                };
+    let log_dir = if let Some(dir) = log_dir {
+        PathBuf::from(
+            shellexpand::full(&dir.display().to_string())
+                .unwrap_or_else(|_| {
+                    Cow::from(
+                        LookupError {
+                            var_name: "Unkown Environment Variable".into(),
+                            cause:    env::VarError::NotPresent,
+                        }
+                        .to_string(),
+                    )
+                })
+                .to_string(),
+        )
+    } else {
+        env::temp_dir().join(crate_name!())
+    };
 
-                let mut style = buf.style();
-                let target_style = style.set_color(LogColor::Ansi256(14));
+    // .create_symlink()
+    // .format(colored_format)
+    let logger = Logger::try_with_str(env::var("LXHKD_LOG").unwrap_or_else(
+        |_| match args.verbose {
+            1 => String::from("debug"),
+            2 => String::from("trace"),
+            _ => String::from("info"),
+        },
+    ))?
+    .log_to_file(
+        FileSpec::default()
+            .basename(crate_name!())
+            .directory(&log_dir),
+    )
+    .write_mode(WriteMode::BufferAndFlush)
+    .adaptive_format_for_stderr(AdaptiveFormat::Custom(uncolored_format, colored_format))
+    .format_for_files(uncolored_format)
+    .duplicate_to_stderr(Duplicate::All)
+    .rotate(
+        Criterion::AgeOrSize(Age::Day, 50_000_000),
+        Naming::Numbers,
+        Cleanup::KeepLogFiles(4),
+    )
+    .set_palette(String::from("9;11;14;5;13"))
+    .start();
 
-                writeln!(
-                    buf,
-                    " {}: {} {}",
-                    level_style.value(record.level()),
-                    target_style.value(record.target()),
-                    record.args()
-                )
-            })
-            .filter(None, match &args.verbose {
-                1 => LevelFilter::Warn,
-                2 => LevelFilter::Info,
-                3 => LevelFilter::Debug,
-                4 => LevelFilter::Trace,
-                _ => LevelFilter::Off,
-            })
-            .init();
-    });
+    Ok(log_dir)
 }

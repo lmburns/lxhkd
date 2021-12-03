@@ -1,6 +1,8 @@
+//! The `Keyboard` struct which is the raw interface with the X-Server
+
 use super::{
     event_handler::Handler,
-    keys::{self, CharacterMap, ModifierMask, XKeyCode},
+    keys::{self, CharacterMap, ModifierMask, XButton, XKeyCode},
     keysym::{KeysymHash, XKeysym},
 };
 use crate::{
@@ -26,13 +28,28 @@ use x11rb::{
     protocol::{
         self,
         xkb::{
-            self, ConnectionExt as _, GetControlsReply, GetMapReply, KeyModMap, KeySymMap, MapPart,
+            self,
+            BoolCtrl,
+            ConnectionExt as _,
+            GetControlsReply,
+            GetMapReply,
+            Group,
+            KeyModMap,
+            KeySymMap,
+            MapPart,
             ID,
         },
         xproto::{
-            self, ConnectionExt, EventMask, GetKeyboardMappingReply, Keycode, Keysym, ModMask,
+            self,
+            ConnectionExt,
+            EventMask,
+            GetKeyboardMappingReply,
+            Keycode,
+            Keysym,
+            ModMask,
         },
-        xtest, Event,
+        xtest,
+        Event,
     },
     rust_connection::RustConnection,
     wrapper::ConnectionExt as _,
@@ -42,6 +59,8 @@ use x11rb::{
 // ListComponentsReply = keymaps keycodes
 // GetDeviceKeyMappingReply , xinput = keysyms
 // GetDeviceModifierMappingReply , xinput = keymaps
+
+// =================== Error ======================
 
 #[derive(Debug, Error)]
 pub(crate) enum Error {
@@ -80,6 +99,8 @@ pub(crate) enum Error {
     PollNextCharacterMap(#[from] anyhow::Error),
 }
 
+// ================= Keyboard =====================
+
 /// State of the keyboard
 pub(crate) struct Keyboard<'a> {
     /// Connection to the X-Server
@@ -94,6 +115,8 @@ pub(crate) struct Keyboard<'a> {
     min_keycode:         u8,
     /// The maximum keycode
     max_keycode:         u8,
+    /// The number of keysyms per keycode
+    keysyms_per_keycode: u8,
     /// The delay in which a key begins repeating
     autorepeat_delay:    u16,
     /// The interval at which a key repeats
@@ -155,6 +178,7 @@ impl<'a> Keyboard<'a> {
             device_id: 0,
             min_keycode: screen.min_keycode,
             max_keycode: screen.max_keycode,
+            keysyms_per_keycode: 0,
             autorepeat_interval: 0,
             autorepeat_delay: 0,
         };
@@ -198,6 +222,7 @@ impl<'a> Keyboard<'a> {
     /// Set the key repeat-delay and repeat-interval
     pub(crate) fn set_controls(&mut self) -> Result<()> {
         let reply = self.get_controls_reply()?;
+
         // println!("DELAY BEFORE: {}", reply.repeat_delay);
         // println!("INTERVAL BEFORE: {}", reply.repeat_interval);
         // self.grab_keyboard()?;
@@ -205,47 +230,50 @@ impl<'a> Keyboard<'a> {
         self.autorepeat_delay = reply.repeat_delay;
         self.autorepeat_interval = reply.repeat_interval;
 
-
         self.conn
             .xkb_set_controls(
                 ID::USE_CORE_KBD.into(),
-                0_u8,                                  // affect_internal_real_mods
-                reply.internal_mods_real_mods,         // internal_real_mods
-                0_u8,                                  // affect_ignore_lock_real_mods
-                reply.ignore_lock_mods_real_mods,      // ignore_lock_real_mods
-                0_u8,                                  // affect_internal_virtual_mods
-                reply.internal_mods_vmods,             // internal_virtual_mods
-                0_u8,                                  // affect_ignore_lock_virtual_mods
-                reply.ignore_lock_mods_vmods,          // ignore_lock_virtual_mods
-                reply.mouse_keys_dflt_btn,             // mouse_keys_dflt_btn
-                reply.groups_wrap,                     // groups_wrap
-                reply.access_x_option,                 // access_x_options
-                0_u16,                                 // affect_enabled_controls
-                reply.enabled_controls,                // enabled_controls
-                0_u32,                                 // change_controls
-                500_u16,                               // repeat_delay
-                1000_u16,                              // repeat_interval
-                reply.slow_keys_delay,                 // slow_keys_delay
-                reply.debounce_delay,                  // debounce_delay
-                reply.mouse_keys_delay,                // mouse_keys_delay
-                reply.mouse_keys_interval,             // mouse_keys_interval
-                reply.mouse_keys_time_to_max,          // mouse_keys_time_to_max
-                reply.mouse_keys_max_speed,            // mouse_keys_max_speed
-                reply.mouse_keys_curve,                // mouse_keys_curve
-                reply.access_x_timeout,                // access_x_timeout
-                reply.access_x_timeout_mask,           // access_x_timeout_mask
-                reply.access_x_timeout_values,         // access_x_timeout_values
-                reply.access_x_timeout_options_mask,   // access_x_timeout_options_mask
-                reply.access_x_timeout_options_values, // access_x_timeout_options_values
-                &reply.per_key_repeat,                 // per_key_repeat
+                0_u8,                                    // affect_internal_real_mods
+                reply.internal_mods_real_mods,           // internal_real_mods
+                0_u8,                                    // affect_ignore_lock_real_mods
+                reply.ignore_lock_mods_real_mods,        // ignore_lock_real_mods
+                0_u8,                                    // affect_internal_virtual_mods
+                reply.internal_mods_vmods,               // internal_virtual_mods
+                0_u8,                                    // affect_ignore_lock_virtual_mods
+                reply.ignore_lock_mods_vmods,            // ignore_lock_virtual_mods
+                reply.mouse_keys_dflt_btn,               // mouse_keys_dflt_btn
+                reply.groups_wrap,                       // groups_wrap
+                reply.access_x_option,                   // access_x_options
+                0_u16,                                   // affect_enabled_controls
+                reply.enabled_controls,                  // enabled_controls
+                0_u32,                                   // change_controls
+                u16::from(500 | BoolCtrl::REPEAT_KEYS),  // repeat_delay
+                u16::from(1000 | BoolCtrl::REPEAT_KEYS), // repeat_interval
+                reply.slow_keys_delay,                   // slow_keys_delay
+                reply.debounce_delay,                    // debounce_delay
+                reply.mouse_keys_delay,                  // mouse_keys_delay
+                reply.mouse_keys_interval,               // mouse_keys_interval
+                reply.mouse_keys_time_to_max,            // mouse_keys_time_to_max
+                reply.mouse_keys_max_speed,              // mouse_keys_max_speed
+                reply.mouse_keys_curve,                  // mouse_keys_curve
+                reply.access_x_timeout,                  // access_x_timeout
+                reply.access_x_timeout_mask,             // access_x_timeout_mask
+                reply.access_x_timeout_values,           // access_x_timeout_values
+                reply.access_x_timeout_options_mask,     // access_x_timeout_options_mask
+                reply.access_x_timeout_options_values,   // access_x_timeout_options_values
+                &reply.per_key_repeat,                   // per_key_repeat
             )
             .context("failed to set XKB controls")?;
+
+        // self.conn.sync()?;
+        // self.flush();
 
         // self.ungrab_keyboard();
 
         // let reply = self.get_controls_reply()?;
         // println!("DELAY AFTER: {}", reply.repeat_delay);
         // println!("INTERVAL AFTER: {}", reply.repeat_interval);
+        // println!("SLOW BEFORE: {}", reply.slow_keys_delay);
 
         Ok(())
     }
@@ -346,7 +374,7 @@ impl<'a> Keyboard<'a> {
                     let hash = KeysymHash::HASH;
 
                     match hash
-                        .get_keysym(keysym)
+                        .get_str_from_keysym_code(keysym)
                         .ok_or(Error::LookupKeysymHash(keysym))
                     {
                         Ok(ks) => {
@@ -376,10 +404,37 @@ impl<'a> Keyboard<'a> {
             }
         }
 
+        let reply = self.get_keyboard_mapping_reply()?;
+        self.keysyms_per_keycode = reply.keysyms_per_keycode;
+
         // "L1", "L2"... get added multiple times with different `modmask`
 
         Ok(())
     }
+
+    // pub(crate) fn latch_lock_state(&self) {
+    //     let lockg = self
+    //         .charmap
+    //         .iter()
+    //         .find(|c| c.utf == "Scroll_Lock")
+    //         .unwrap();
+    //
+    //     let l = self
+    //         .conn
+    //         .xkb_latch_lock_state(
+    //             ID::USE_CORE_KBD.into(),
+    //             0,
+    //             0,
+    //             true,
+    //             Group::from(lockg.group as u8),
+    //             0,
+    //             false,
+    //             0,
+    //         )
+    //         .context("failed to get latch lock state")?
+    //         .check()
+    //         .context("failed to check latch lock state")?;
+    // }
 
     // TODO: needs work
     /// Generate the real modifiers (`shift`, `lock`, `control`, `mod1` -
@@ -471,7 +526,12 @@ impl<'a> Keyboard<'a> {
     pub(crate) fn list_keysyms(&self) -> Result<()> {
         use cli_table::{
             format::{Border, Justify, Separator},
-            print_stdout, Cell, CellStruct, ColorChoice, Style, Table,
+            print_stdout,
+            Cell,
+            CellStruct,
+            ColorChoice,
+            Style,
+            Table,
         };
         let mut table = vec![];
 
@@ -618,6 +678,56 @@ impl<'a> Keyboard<'a> {
         }
     }
 
+    /// Grab the `Button`s passed to this function
+    pub(crate) fn grab_button(&self, buttons: &[&XButton]) -> Result<()> {
+        // self.conn.ungrab_button(ButtonIndex::ANY, self.root, ModMask::ANY)?;
+
+        // EventMask::POINTER_MOTION
+        let mask = u32::from(
+            EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION,
+        );
+        for modifier in &[0, u16::from(ModMask::M2)] {
+            for button in buttons {
+                self.conn.grab_button(
+                    false,                             // owner_events
+                    self.root,                         // grab_window
+                    mask as u16,                       // event_mask
+                    xproto::GrabMode::ASYNC,           // pointer_mode
+                    xproto::GrabMode::ASYNC,           // keyboard_mode
+                    x11rb::NONE,                       // confine_to
+                    x11rb::NONE,                       // cursor
+                    button.code().into(),              // button
+                    u16::from(button.mask) | modifier, // modifiers
+                )?;
+            }
+        }
+
+        // self.flush();
+        Ok(())
+    }
+
+    /// Ungrab the given `Button`s
+    pub(crate) fn ungrab_button(&self, buttons: &[XButton]) {
+        for button in buttons {
+            if let Err(e) = self
+                .conn
+                .ungrab_button(button.code().into(), self.root, button.mask)
+            {
+                lxhkd_fatal!("failed to ungrab button: {}", button);
+            }
+        }
+    }
+
+    /// Ungrab any grabbed button
+    pub(crate) fn ungrab_any_button(&self) {
+        if let Err(e) =
+            self.conn
+                .ungrab_button(xproto::ButtonIndex::ANY, self.root, xproto::ModMask::ANY)
+        {
+            lxhkd_fatal!("failed to ungrab any button: {}", e);
+        }
+    }
+
     /////
     // fn on_read_key_press<F>(conn: &xcb::Connection, mut f: F)
     // where
@@ -678,6 +788,32 @@ impl<'a> Keyboard<'a> {
 
         Ok(key)
     }
+
+    /// Ungrab everything this program grabbed. Used for when the user stops the
+    /// program
+    pub(crate) fn cleanup(&self) -> Result<()> {
+        self.ungrab_keyboard();
+        self.ungrab_any_key();
+        self.ungrab_any_button();
+
+        self.conn.flush()?;
+
+        Ok(())
+    }
+
+    // pub(crate) fn set_cursor(
+    //     &self,
+    //     window: xproto::Window,
+    //     cursor_name: &str,
+    // ) -> Result<()> {
+    //     self.conn.change_window_attributes(
+    //         window,
+    //         &ChangeWindowAttributesAux::new()
+    //             .cursor(self.cursor_handle.load_cursor(self.conn, cursor_name)?),
+    //     )?;
+    //
+    //     Ok(())
+    // }
 
     ///////////////////////
 
@@ -786,28 +922,6 @@ impl<'a> Keyboard<'a> {
     //     );
     // }
     //
-    // /// TODO: Serialize the modifier masks for the current state of the keyboard
-    // pub(crate) fn mod_mask(&mut self) -> xkb::ModMask {
-    //     use xkb::state::component;
-    //
-    //     state::Serialize(&mut self.state).mods(component::MODS_EFFECTIVE)
-    // }
-    //
-    // /// Update the keymap and set the keyboard state
-    // pub(crate) fn update_keymap(&mut self) -> Result<()> {
-    //     self.device_id = xkb::x11::get_core_keyboard_device_id(&self.conn);
-    //     self.keymap = xkb::x11::keymap_new_from_device(
-    //         &self.context,
-    //         &self.conn,
-    //         self.device_id,
-    //         xkb::KEYMAP_COMPILE_NO_FLAGS,
-    //     );
-    //
-    //     self.state = xkb::x11::state_new_from_device(&self.keymap, &self.conn,
-    // self.device_id);
-    //
-    //     Ok(())
-    // }
     //
     // /// Update the device's current state
     // pub(crate) fn update_state(&mut self, event: &xcb::xkb::StateNotifyEvent) {
@@ -820,4 +934,20 @@ impl<'a> Keyboard<'a> {
     //         event.locked_group() as xkb::LayoutIndex,
     //     );
     // }
+}
+
+impl<'a> fmt::Debug for Keyboard<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "--Keyboard--\nroot: {:?}\ndevice_id: {}\nmin_keycode: {}\nmax_keycode: \
+             {}\nautorepeat_delay: {}\nautorepeat_interval: {}",
+            self.root,
+            self.device_id,
+            self.min_keycode,
+            self.max_keycode,
+            self.autorepeat_delay,
+            self.autorepeat_interval,
+        )
+    }
 }

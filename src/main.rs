@@ -71,9 +71,11 @@ use clap::Parser;
 use cli::Opts;
 use colored::Colorize;
 use config::Config;
-use keys::keyboard::Keyboard;
+use keys::{chord::Chord2, keyboard::Keyboard};
 use parse::parser::Line;
 use xcb_utils::XUtility;
+
+use x11_keysymdef as ksdef;
 
 fn main() -> Result<()> {
     if users::get_effective_uid() == 0 || users::get_current_uid() == 0 {
@@ -82,7 +84,12 @@ fn main() -> Result<()> {
 
     let config = Config::load_default().context("failed to load default configuration file")?;
     let args = Opts::parse();
-    utils::initialize_logging(&args);
+
+    if let Ok(dir) = utils::initialize_logging(config.global.log_dir, &args) {
+        log::info!("log files can be found: {}", dir.display());
+    } else {
+        log::info!("logging failed to initialize");
+    }
 
     let (conn, screen_num) = XUtility::setup_connection()?;
     let keyboard = Keyboard::new(&conn, screen_num)?;
@@ -96,15 +103,21 @@ fn main() -> Result<()> {
         for (mut idx, l) in lines.enumerate() {
             idx += 1;
 
-            let line = Line::new(l, idx);
-            let tokenized = line.tokenize();
+            let line = Line::new_plus(l, idx);
+            let mut tokenized = line.tokenize();
+            tokenized.further_tokenize()?;
 
-            let charmap = CharacterMap::charmap_from_tokenizedline(&keyboard.charmap, &tokenized);
+            let chord = tokenized.convert_to_chord(&keyboard.charmap)?;
+            println!("CHORD: {:#?}", chord);
+            // let charmaps = Chord2::from_flatoke(&keyboard.charmap, flat);
 
-            log::debug!("Line: {}", l);
-            log::debug!("Tokenized: {:#?}", charmap);
+            // log::debug!("{}: {}", "Line".red().bold(), l);
+            // log::debug!("{}: {:#?}", "Tokenized".blue().bold(), charmaps);
         }
     }
+
+    // let a = ksdef::lookup_by_name("ISO_Level3_Shift");
+    // println!("hyper: lookup {:#?}", a);
 
     Ok(())
 }

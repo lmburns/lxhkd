@@ -114,19 +114,21 @@ impl fmt::Display for XKeyCode {
 /// available.
 ///
 /// `bool`s are needed here to combine multiple modifiers
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub(crate) struct ModifierMask {
     mask: u16,
 }
 
 impl ModifierMask {
     /// Create a new `ModifierMask`
-    pub(crate) fn new(mask: u16) -> Self {
+    pub(crate) const fn new(mask: u16) -> Self {
         Self { mask }
     }
 
     /// Return the inner `mask`
-    pub(crate) fn mask(self) -> u16 {
+    pub(crate) const fn mask(self) -> u16 {
         self.mask
     }
 
@@ -428,7 +430,7 @@ impl fmt::Display for XButton {
 /// since `mod4` is represented the same regardless of which key it is mapped
 /// to, we will scan the built `CharacterMap` and find the corresponding key
 /// that has the same `modmask` and set everything else the same
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub(crate) struct CharacterMap {
     /// The UTF-8 representation of the key. E.g., `Hyper_L`
     pub(crate) utf:     String,
@@ -471,31 +473,6 @@ impl CharacterMap {
             vmod,
             group: u16::from(group),
         }
-    }
-
-    /// Generate a new `CharacterMap`
-    pub(crate) fn new1(
-        keysym: Keysym,
-        keycode: Keycode,
-        mask: u16,
-        level: u8,
-        vmod: u16,
-        group: u8,
-    ) -> Result<Self> {
-        let hash = KeysymHash::HASH;
-
-        Ok(Self {
-            utf: hash
-                .get_str_from_keysym_code(keysym)
-                .ok_or(Error::LookupKeysymHash(keysym))?
-                .to_string(),
-            code: keycode,
-            modmask: mask,
-            symbol: keysym,
-            level,
-            vmod,
-            group: u16::from(group),
-        })
     }
 
     /// Return the `CharacterMap` corresponding to the given `Keysym` code. For
@@ -547,7 +524,7 @@ impl CharacterMap {
 
 /// Get the `ModMask` of a `Keycode` based on the set modifiers found in
 /// [`KeyModMap`](x11rb::protocol::KeyModMap)
-pub(crate) fn get_modmask_from_keycode(modmap: &[KeyModMap], keycode: Keycode) -> u8 {
+pub(super) fn get_modmask_from_keycode(modmap: &[KeyModMap], keycode: Keycode) -> u8 {
     modmap
         .iter()
         .find(|m| m.keycode == keycode)

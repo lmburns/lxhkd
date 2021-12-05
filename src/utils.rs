@@ -1,6 +1,6 @@
 //! Various helper-utilities
 
-use crate::cli::Opts;
+use crate::{cli::Opts, config::Config};
 use anyhow::{Context, Result};
 use clap::crate_name;
 use flexi_logger::{
@@ -35,8 +35,10 @@ use std::{
 // /// Used to initialize logging
 // static ONCE: Once = Once::new();
 
+// TODO: Perhaps use a `SyslogWriter`
+
 /// Initializes logging for this crate
-pub(crate) fn initialize_logging(log_dir: Option<PathBuf>, args: &Opts) -> Result<PathBuf> {
+pub(crate) fn initialize_logging(config: &Config, args: &Opts) -> Result<PathBuf> {
     /// Customize the format of the log (colored)
     fn colored_format(
         w: &mut dyn Write,
@@ -44,10 +46,10 @@ pub(crate) fn initialize_logging(log_dir: Option<PathBuf>, args: &Opts) -> Resul
         record: &Record,
     ) -> Result<(), io::Error> {
         let level = record.level();
+        // style(level, now.now().format("%d %H:%M:%S")),
         write!(
             w,
-            "[{:>}] {:<5} [{}:{}]: {}",
-            style(level, now.now().format("%Y-%m-%d %H:%M:%S")),
+            "{:<5} [{}:{}]: {}",
             style(level, level),
             style(Level::Trace, record.file().unwrap_or("<unnamed>")),
             record.line().unwrap_or(0),
@@ -62,11 +64,10 @@ pub(crate) fn initialize_logging(log_dir: Option<PathBuf>, args: &Opts) -> Resul
         record: &Record,
     ) -> Result<(), io::Error> {
         // Strip the ansi sequences that I have put in log messages using the `colored`
-        // crate when writing to a file. I'm not sure that this gets ran when writing to
-        // a file
+        // crate when writing to a file. Also use a date
         write!(
             w,
-            "[{:>}] {:>} [{}:{}]: {}",
+            "[{:>}] {:<5} [{}:{}]: {}",
             now.now().format("%Y-%m-%d %H:%M:%S"),
             record.level(),
             record.file().unwrap_or("<unnamed>"),
@@ -88,7 +89,7 @@ pub(crate) fn initialize_logging(log_dir: Option<PathBuf>, args: &Opts) -> Resul
         }));
     }
 
-    let log_dir = if let Some(dir) = log_dir {
+    let log_dir = if let Some(dir) = &config.global.log_dir {
         PathBuf::from(
             shellexpand::full(&dir.display().to_string())
                 .unwrap_or_else(|_| {
@@ -108,29 +109,57 @@ pub(crate) fn initialize_logging(log_dir: Option<PathBuf>, args: &Opts) -> Resul
 
     // .create_symlink()
     // .format(colored_format)
-    let logger = Logger::try_with_str(env::var("LXHKD_LOG").unwrap_or_else(
-        |_| match args.verbose {
-            1 => String::from("debug"),
-            2 => String::from("trace"),
-            _ => String::from("info"),
-        },
-    ))?
-    .log_to_file(
-        FileSpec::default()
-            .basename(crate_name!())
-            .directory(&log_dir),
-    )
-    .write_mode(WriteMode::BufferAndFlush)
-    .adaptive_format_for_stderr(AdaptiveFormat::Custom(uncolored_format, colored_format))
-    .format_for_files(uncolored_format)
-    .duplicate_to_stderr(Duplicate::All)
-    .rotate(
-        Criterion::AgeOrSize(Age::Day, 50_000_000),
-        Naming::Numbers,
-        Cleanup::KeepLogFiles(4),
-    )
-    .set_palette(String::from("9;11;14;5;13"))
-    .start();
+    let mut logger =
+        Logger::try_with_str(
+            env::var("LXHKD_LOG").unwrap_or_else(|_| match args.verbose {
+                1 => String::from("debug"),
+                2 => String::from("trace"),
+                _ => String::from("info"),
+            }),
+        )?
+        .write_mode(WriteMode::BufferAndFlush)
+        .adaptive_format_for_stderr(AdaptiveFormat::Custom(uncolored_format, colored_format))
+        .set_palette(String::from("9;11;14;5;13"));
+
+    if config.global.log_to_file {
+        logger = logger
+            .duplicate_to_stderr(Duplicate::All)
+            .rotate(
+                Criterion::AgeOrSize(Age::Day, 50_000_000),
+                Naming::Numbers,
+                Cleanup::KeepLogFiles(2),
+            )
+            .log_to_file(
+                FileSpec::default()
+                    .basename(crate_name!())
+                    .directory(&log_dir),
+            )
+            .format_for_files(uncolored_format);
+    }
+
+    logger.start();
 
     Ok(log_dir)
+}
+
+pub(crate) fn disown() {
+    use std::{env, process};
+
+    if cfg!(debug_assertions) {
+        return;
+    }
+
+    if let Ok(current_exe) = env::current_exe() {
+        assert!(process::Command::new(current_exe)
+            .arg("--nofork")
+            .args(env::args().skip(1))
+            .spawn()
+            .is_ok());
+        process::exit(0);
+    } else {
+        eprintln!(
+            "error in disowning process, cannot obtain the path for the current executable, \
+             continuing without disowning..."
+        );
+    }
 }

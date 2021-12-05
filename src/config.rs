@@ -2,8 +2,10 @@
 
 use crate::keys::chord::{Chain, Chord};
 use anyhow::{Context, Result};
+use colored::Colorize;
 use format_serde_error::SerdeError;
 use indexmap::IndexMap;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
@@ -17,12 +19,21 @@ use std::{
 };
 
 const CONFIG_FILE: &str = "lxhkd.yml";
+const LOG_TO_FILE_DEFAULT: bool = true;
+
+pub(crate) static SHELL: Lazy<String> =
+    Lazy::new(|| env::var("SHELL").unwrap_or_else(|_| String::from("/bin/bash")));
+
+/// I guess that functions are required to set a `serde` default value
+fn log_to_file_default() -> bool {
+    LOG_TO_FILE_DEFAULT
+}
 
 // TODO: Test configuration and make sure no crash if empty
 // TODO: Allow for specifying of config file
 
-// 
-// - https://unix.stackexchange.com/questions/320373/how-to-remap-keyboard-keys-based-on-how-long-you-hold-the-key/320474
+// https://unix.stackexchange.com/questions/320373/
+// how-to-remap-keyboard-keys-based-on-how-long-you-hold-the-key/320474
 
 // =============== GlobalSettings =================
 
@@ -34,23 +45,41 @@ pub(crate) struct GlobalSettings {
 
     // TODO: Implement this
     /// The timeout between keypresses
-    pub(crate) timeout: Option<usize>,
+    pub(crate) timeout: Option<u32>,
 
     // TODO: Implement this
     /// The delay in which keys begin to repeat
     #[serde(alias = "autorepeat-delay")]
-    pub(crate) autorepeat_delay: Option<usize>,
+    pub(crate) autorepeat_delay: Option<u16>,
 
     // TODO: Implement this
     /// The speed in which keys repeat after the delay
     #[serde(alias = "autorepeat-interval")]
-    pub(crate) autorepeat_interval: Option<usize>,
+    pub(crate) autorepeat_interval: Option<u16>,
+
+    /// Whether logs should be written to a file
+    #[serde(alias = "log-to-file")]
+    #[serde(default = "log_to_file_default")]
+    pub(crate) log_to_file: bool,
 
     /// The directory to write the log to
     #[serde(alias = "log-dir")]
     pub(crate) log_dir: Option<PathBuf>,
 }
 
+// impl Default for GlobalSettings {
+//     fn default() -> Self {
+//         Self {
+//             shell:               None,
+//             timeout:             None,
+//             autorepeat_delay:    None,
+//             autorepeat_interval: None,
+//             log_to_file:         true,
+//             log_dir:             None,
+//         }
+//     }
+// }
+//
 // =================== Config =====================
 
 /// Configuration file to parse.
@@ -122,59 +151,69 @@ impl Config {
 // =================== Action =====================
 
 /// The action that a mapping will do
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Action {
     /// A shell command    (i.e, opening a terminal)
-    ShellCmd(String),
+    Shell(String),
+
     /// Another keymapping (i.e., Caps_Lock => Escape)
     Remap(Chord),
+
+    /// `xscape` type bindings, where a key is different if pressed vs held
+    /// For example:
+    ///     - `Caps_Lock` => `Escape` when tapped
+    ///     - `Caps_Lock` => `Hyper_L` when held
+    Xcape(String),
 }
 
 impl Action {
     /// Spawn a shell from the given keybind mapping
-    pub(crate) fn spawn_shell<I, S>(cmd: I, shell: S)
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let shell_cmd = shell.as_ref().split_whitespace().collect::<Vec<_>>();
-        let mut builder = {
-            if shell_cmd.len() > 1 {
-                let mut builder = Command::new(shell_cmd[0]);
-                builder.arg(shell_cmd[1]);
-                builder
-            } else {
-                let mut builder = Command::new(shell_cmd[0]);
-                builder.arg("-c");
-                builder
-            }
-        };
+    pub(crate) fn spawn_shell(cmd: &str, shell: &str) {
+        // If the user has something like 'zsh -euy' as their command
+        let shell_cmd = shell
+            .split_whitespace()
+            .into_iter()
+            .map(str::trim)
+            .collect::<Vec<_>>();
 
-        for arg in cmd {
-            let arg = arg.as_ref();
-            builder.arg(arg);
+        let mut builder = Command::new(shell_cmd[0]);
+        if shell_cmd.len() > 1 {
+            builder.arg(shell_cmd[1]);
         }
 
-        builder
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok();
+        builder.arg("-c");
+        builder.arg(cmd);
+
+        log::debug!("running command: {}", cmd.green().bold());
+        match builder.stdout(Stdio::null()).stderr(Stdio::null()).spawn() {
+            Ok(mut child) => {
+                std::thread::spawn(move || match child.wait() {
+                    Ok(status) => {
+                        log::debug!("exited with a code {:?}", status.code());
+                    },
+                    Err(e) => {
+                        log::debug!("exited with an error {}", e);
+                    },
+                });
+            },
+            Err(e) => {
+                log::error!("there was an error spawning {}: {}", cmd.green().bold(), e);
+            },
+        }
     }
 
-    /// Run the given `Action`, given it is a command or a remap
-    pub(crate) fn run(&self, config: &Config) {
+    /// Run the given `Action`
+    pub(crate) fn run(&self, shell: &Option<String>) {
         match self {
-            Self::ShellCmd(cmd) => {
-                let possible_shell =
-                    env::var("SHELL").unwrap_or_else(|_| String::from("/bin/bash"));
-                Self::spawn_shell(
-                    cmd.split_whitespace().map(str::trim).collect::<Vec<_>>(),
-                    config.global.shell.as_ref().unwrap_or(&possible_shell),
-                );
+            Self::Shell(cmd) => {
+                println!("=== Running ===");
+                Self::spawn_shell(cmd, shell.as_ref().unwrap_or(&SHELL.to_string()));
             },
             Self::Remap(remap) => {
                 println!("found remap: {}", remap);
+            },
+            Self::Xcape(xcape) => {
+                println!("found xcape: {}", xcape);
             },
         }
     }

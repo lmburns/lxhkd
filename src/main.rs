@@ -65,14 +65,15 @@ mod types;
 mod utils;
 mod xcb_utils;
 
-use crate::keys::keys::CharacterMap;
+use crate::{config::Action, keys::keys::CharacterMap};
 use anyhow::{Context, Result};
 use clap::Parser;
 use cli::Opts;
 use colored::Colorize;
 use config::Config;
-use keys::{chord::Chord2, keyboard::Keyboard};
+use keys::{daemon::Daemon, keyboard::Keyboard};
 use parse::parser::Line;
+use x11rb::{connection::Connection, protocol::Event};
 use xcb_utils::XUtility;
 
 use x11_keysymdef as ksdef;
@@ -85,39 +86,37 @@ fn main() -> Result<()> {
     let config = Config::load_default().context("failed to load default configuration file")?;
     let args = Opts::parse();
 
-    if let Ok(dir) = utils::initialize_logging(config.global.log_dir, &args) {
-        log::info!("log files can be found: {}", dir.display());
+    // #[cfg(not(test))]
+    if let Ok(dir) = utils::initialize_logging(&config, &args) {
+        if config.global.log_to_file {
+            log::info!(
+                "log files can be found: {}",
+                dir.display().to_string().blue().bold()
+            );
+        } else {
+            log::info!("logging to file is disabled");
+        }
     } else {
         log::info!("logging failed to initialize");
     }
 
     let (conn, screen_num) = XUtility::setup_connection()?;
-    let keyboard = Keyboard::new(&conn, screen_num)?;
+    let keyboard = Keyboard::new(&conn, screen_num, &config)?;
 
     if args.keysyms {
         keyboard.list_keysyms()?;
     }
 
-    if let Some(bindings) = config.bindings {
-        let lines = bindings.keys();
-        for (mut idx, l) in lines.enumerate() {
-            idx += 1;
+    let mut daemon = Daemon::new(&keyboard, &config);
+    daemon.process_bindings();
 
-            let line = Line::new_plus(l, idx);
-            let mut tokenized = line.tokenize();
-            tokenized.further_tokenize()?;
+    loop {
+        // keyboard.flush();
+        // let event = keyboard.connection().wait_for_event()?;
 
-            let chord = tokenized.convert_to_chord(&keyboard.charmap)?;
-            println!("CHORD: {:#?}", chord);
-            // let charmaps = Chord2::from_flatoke(&keyboard.charmap, flat);
-
-            // log::debug!("{}: {}", "Line".red().bold(), l);
-            // log::debug!("{}: {:#?}", "Tokenized".blue().bold(), charmaps);
-        }
+        let key = keyboard.get_next_any_key()?;
+        println!("EVENT: {:#?}", key);
     }
-
-    // let a = ksdef::lookup_by_name("ISO_Level3_Shift");
-    // println!("hyper: lookup {:#?}", a);
 
     Ok(())
 }

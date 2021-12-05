@@ -3,10 +3,14 @@
 shell: zsh
 ### The timeout between key presses
 timeout: 300
+
 ### The delay in which keys begin to repeat
-autorepeat_delay: 300
+#autorepeat_delay: 300
 ### The speed in which keys repeat after the delay
-autorepeat_interval: 50
+# autorepeat_interval: 50
+
+### Whether contents should be written to a file
+log_to_file: true
 ### The file to write the log to
 log_dir: ${XDG_CONFIG_HOME}/lxhkd/log
 

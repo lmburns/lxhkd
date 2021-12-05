@@ -3,16 +3,15 @@
 use crate::{
     config::{Action, Config},
     keys::{
-        chord::Chord2,
+        chord::{Chain, Chord},
         keys::{CharacterMap, ModifierMask},
         keysym::KeysymHash,
     },
     lxhkd_fatal,
 };
-use indexmap::IndexMap;
-// chord::{Chain, Chord},
 use anyhow::{Context, Result};
 use colored::Colorize;
+use indexmap::IndexMap;
 use itertools::{Itertools, PeekingNext, PeekingTakeWhile};
 use once_cell::sync::Lazy;
 use rayon::prelude::*;
@@ -363,7 +362,7 @@ impl<'a> TokenizedLine<'a> {
         // Will match the `modmask` level of `modN` keys with the `CharacterMap`
         // database, returning the actual modifier for that `mod` key. For example,
         // `match_modmask(3, "Alt_L")` will match `mod1` and if it fails, `Alt_L` will
-        // be used instead
+        // be used instead. `Alt_L` is used because that is what it is by default
         let match_modmask = |mask: u16, or: &'a str| -> &'a str {
             charmaps
                 .iter()
@@ -389,24 +388,34 @@ impl<'a> TokenizedLine<'a> {
             "mod4" => match_modmask(6, "Super_L"),
             "mod5" => match_modmask(7, "ISO_Level3_Lock"),
 
+            // This will catch the actual `Keysym` named modifiers
+            // i.e., the names on the right side of the match above
             other => other,
         }
     }
 
-    /// Return a vector of `CharacterMap`s from a flattened `TokenizedLine`
-    pub(crate) fn convert_to_chord(&'a mut self, charmaps: &'a [CharacterMap]) -> Result<Chord2> {
+    /// Convert a `TokenizedLine` to a `Chain`
+    pub(crate) fn convert_to_chain(&'a mut self, charmaps: &'a [CharacterMap]) -> Option<Chain> {
         let line = self.finalize_split();
-        let mut indexmap = IndexMap::new();
+        let mut chords = vec![];
         let mut is_release = false;
         let mut modmask = ModifierMask::new(0);
+
+        if line.contains(&&Token::Invalid) {
+            return None;
+        }
 
         for bind in line {
             if let Token::Modifier(modifier) = bind {
                 let mapped = Self::map_modifiers(charmaps, modifier);
                 if let Some(charmap) = CharacterMap::charmap_from_keysym_utf(charmaps, mapped) {
-                    log::debug!("found: {}\n{:#?}", mapped.yellow().bold(), charmap);
+                    log::debug!(
+                        "found `modifier`: {}\n{:#?}",
+                        mapped.yellow().bold(),
+                        charmap
+                    );
                     modmask.combine_u16(charmap.modmask);
-                    indexmap.insert(charmap.code, charmap);
+                    chords.push(Chord::new(&charmap, charmap.modmask));
                 } else {
                     log::info!("{} was not found in the `CharacterMap` database", mapped);
                 }
@@ -414,8 +423,12 @@ impl<'a> TokenizedLine<'a> {
                 if let Some(charmap) =
                     CharacterMap::charmap_from_keysym_utf(charmaps, &ch.to_string())
                 {
-                    log::debug!("found: {}\n{:#?}", ch.to_string().yellow().bold(), charmap);
-                    indexmap.insert(charmap.code, charmap);
+                    log::debug!(
+                        "found `char`: {}\n{:#?}",
+                        ch.to_string().yellow().bold(),
+                        charmap
+                    );
+                    chords.push(Chord::new(&charmap, charmap.modmask));
                 } else {
                     log::info!("{} was not found in the `CharacterMap` database", ch);
                 }
@@ -424,14 +437,12 @@ impl<'a> TokenizedLine<'a> {
             }
         }
 
-        // println!("map: {:#?}", indexmap);
-
-        Chord2::new(indexmap, modmask, is_release)
+        Some(Chain::new(chords, is_release, modmask))
     }
 
-    /// A function that runs all of the tokenizing functions in the order
-    /// they're supposed to be ran
-    pub(crate) fn further_tokenize(&mut self) -> Result<()> {
+    /// A function that runs all of the tokenizing/parsing functions in the
+    /// order they're supposed to be ran
+    pub(crate) fn parse_tokens(&mut self) -> Result<()> {
         // Check for `Keysym` indicators before matching with regex
         // which may convert it to a `char`
         self.check_keysym();
@@ -598,8 +609,8 @@ impl<'a> TokenizedLine<'a> {
                         }
                     }
                     log::warn!(
-                        "invalid option found in configuration: {}.\n{} may only be single \
-                         'char's or digits. For example: {{a,b,c}}",
+                        "invalid option found in configuration: {}\n{} may only be single 'char's \
+                         or digits. For example: {{a,b,c}}",
                         "Options".green().bold(),
                         self.line.vector[vec_idx].to_string().red().bold()
                     );
@@ -611,10 +622,11 @@ impl<'a> TokenizedLine<'a> {
     }
 
     // TODO: Possibly add support for keysym codes in ranges
+    // TODO: Check char len, if ranges are single chars, it will be 5
 
     /// Expand the range operator within an option to convert {a-c} to
     /// `RangeGroup('a', 'b', 'c')`
-    #[rustfmt::skip] // Using this on the long vector match statement requires nightly
+    #[rustfmt::skip] // Can't use on statements without nightly
     pub(crate) fn expand_range(&mut self) {
         for vec_idx in 0..self.tokenized.len() {
             // Shitty way, but check if it contains {..}
@@ -622,41 +634,54 @@ impl<'a> TokenizedLine<'a> {
                 && self.tokenized[vec_idx].contains(&Token::Dash)
                 && self.tokenized[vec_idx].contains(&Token::OptionEnd)
             {
-                for tok_idx in 0..self.tokenized[vec_idx].len() {
-                    let mut is_release = false;
-                    if self.is_release(vec_idx) {
-                        is_release = true;
-                        self.tokenized[vec_idx].remove(0);
-                    }
+                let tok_idx = 0;
+                let mut is_release = false;
+                // Remove release to add back later after parsing
+                if self.is_release(vec_idx) {
+                    is_release = true;
+                    self.tokenized[vec_idx].remove(0);
+                }
 
-                    if self.tokenized[vec_idx][tok_idx] == Token::OptionStart {
-                        if let [
-                            Token::OptionStart,
-                            Token::Char(_),
-                            Token::Dash,
-                            Token::Char(_),
-                            Token::OptionEnd
-                        ] =
-                            &self.tokenized[vec_idx][..]
-                        {
-                            let start = &self.tokenized[vec_idx][tok_idx + 1];
-                            let end = &self.tokenized[vec_idx][tok_idx + 3];
-                            log::info!(
-                                "<{}> - Found {}({})",
-                                self.line.to_string().purple().bold(),
-                                "Token::RangeGroup".red().bold(),
-                                format!("{}-{}", start, end)
-                            );
+                if self.tokenized[vec_idx][tok_idx] == Token::OptionStart {
+                    if let [
+                        Token::OptionStart,
+                        Token::Char(_),
+                        Token::Dash,
+                        Token::Char(_),
+                        Token::OptionEnd
+                    ] =
+                        &self.tokenized[vec_idx][..]
+                    {
+                        let start = &self.tokenized[vec_idx][tok_idx + 1];
+                        let end = &self.tokenized[vec_idx][tok_idx + 3];
+                        log::info!(
+                            "<{}> - Found {}({})",
+                            self.line.to_string().purple().bold(),
+                            "Token::RangeGroup".red().bold(),
+                            format!("{}-{}", start, end)
+                        );
 
-                            let mut chars = vec![];
-                            if let Token::Char(s) = start {
-                                if let Token::Char(e) = end {
-                                    for n in *s..=*e {
-                                        chars.push(n);
-                                    }
+                        let mut chars = vec![];
+                        if let Token::Char(s) = start {
+                            if let Token::Char(e) = end {
+                                if e < s {
+                                    log::warn!(
+                                        "<{}>: range end ({}) must be less than range start ({})",
+                                        self.line.vector[vec_idx].red().bold(),
+                                        e,
+                                        s
+                                    );
+                                    self.tokenized[vec_idx] = vec![Token::Invalid];
+                                    break;
+                                }
+
+                                for n in *s..=*e {
+                                    chars.push(n);
                                 }
                             }
+                        }
 
+                        if !chars.is_empty() {
                             self.tokenized[vec_idx] = vec![Token::RangeGroup(chars)];
                             if is_release {
                                 self.tokenized[vec_idx].insert(0, Token::Release);
@@ -664,15 +689,17 @@ impl<'a> TokenizedLine<'a> {
                             break;
                         }
                     }
-                    log::warn!(
-                        "invalid range found in configuration: {}.\n{} may only be single \
-                        'char's or digits. For example: {{a-e}}",
-                        "Ranges".green().bold(),
-                        self.line.vector[vec_idx].to_string().red().bold()
-                    );
-                    // Was an invalid range so replace item with an `Invalid` token
-                    self.tokenized[vec_idx] = vec![Token::Invalid];
                 }
+                log::warn!(
+                    "invalid range found in configuration: {}",
+                    "Ranges".green().bold(),
+                );
+                log::warn!(
+                    "{} may only be single 'char's or digits. For example: {{a-e}}",
+                    self.line.vector[vec_idx].to_string().red().bold()
+                );
+                // Was an invalid range so replace item with an `Invalid` token
+                self.tokenized[vec_idx] = vec![Token::Invalid];
             }
         }
     }
@@ -688,7 +715,7 @@ mod tests {
     fn token_empty() -> Result<()> {
         let line = Line::new_plus("", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert!(tokenized.tokenized.is_empty());
         Ok(())
     }
@@ -697,7 +724,7 @@ mod tests {
     fn token_char() -> Result<()> {
         let line = Line::new_plus("a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Char('a')]]);
         Ok(())
     }
@@ -706,7 +733,7 @@ mod tests {
     fn token_text() -> Result<()> {
         let line = Line::new_plus("abc", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Text(String::from(
             "abc"
         ))]]);
@@ -717,7 +744,7 @@ mod tests {
     fn token_modifier() -> Result<()> {
         let line = Line::new_plus("super", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
             String::from("super")
         )]]);
@@ -728,7 +755,7 @@ mod tests {
     fn token_modifier_left() -> Result<()> {
         let line = Line::new_plus("lsuper", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
             String::from("lsuper")
         )]]);
@@ -739,7 +766,7 @@ mod tests {
     fn token_modifier_left_keysym_str() -> Result<()> {
         let line = Line::new_plus("Hyper_L", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
             String::from("Hyper_L")
         )]]);
@@ -750,7 +777,7 @@ mod tests {
     fn token_range_char() -> Result<()> {
         let line = Line::new_plus("a-c", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![
             Token::Char('a'),
             Token::Dash,
@@ -763,7 +790,7 @@ mod tests {
     fn token_range_char_space() -> Result<()> {
         let line = Line::new_plus("a - c", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![
             Token::Char('a'),
             Token::Dash,
@@ -777,7 +804,7 @@ mod tests {
     fn token_range_str() -> Result<()> {
         let line = Line::new_plus("abc-cba", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![
             Token::Text(String::from("abc")),
             Token::Dash,
@@ -791,7 +818,7 @@ mod tests {
     fn token_range_str_space() -> Result<()> {
         let line = Line::new_plus("abc - cba", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![
             Token::Text(String::from("abc")),
             Token::Dash,
@@ -804,7 +831,7 @@ mod tests {
     fn token_plus() -> Result<()> {
         let line = Line::new_plus("super+t", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -817,7 +844,7 @@ mod tests {
     fn token_plus_space() -> Result<()> {
         let line = Line::new_plus("super + t", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -830,7 +857,7 @@ mod tests {
     fn token_option() -> Result<()> {
         let line = Line::new_plus("{a,b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::OptionGroup(vec![
             'a', 'b'
         ])]]);
@@ -841,7 +868,7 @@ mod tests {
     fn token_option_space() -> Result<()> {
         let line = Line::new_plus("{a, b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::OptionGroup(vec![
             'a', 'b'
         ])]]);
@@ -852,7 +879,7 @@ mod tests {
     fn token_option_three() -> Result<()> {
         let line = Line::new_plus("{a,b,z}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::OptionGroup(vec![
             'a', 'b', 'z'
         ])]]);
@@ -863,7 +890,7 @@ mod tests {
     fn token_option_three_space() -> Result<()> {
         let line = Line::new_plus("{a, b, z}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::OptionGroup(vec![
             'a', 'b', 'z'
         ])]]);
@@ -874,7 +901,7 @@ mod tests {
     fn token_option_range() -> Result<()> {
         let line = Line::new_plus("{a-b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec![
             'a', 'b'
         ])]]);
@@ -885,7 +912,7 @@ mod tests {
     fn token_option_range_space() -> Result<()> {
         let line = Line::new_plus("{a - b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec![
             'a', 'b'
         ])]]);
@@ -896,7 +923,7 @@ mod tests {
     fn token_option_range_three() -> Result<()> {
         let line = Line::new_plus("{a-c}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec![
             'a', 'b', 'c'
         ])]]);
@@ -907,7 +934,7 @@ mod tests {
     fn token_option_range_three_space() -> Result<()> {
         let line = Line::new_plus("{a - c}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec![
             'a', 'b', 'c'
         ])]]);
@@ -915,10 +942,56 @@ mod tests {
     }
 
     #[test]
+    fn token_option_range_less_than_char() -> Result<()> {
+        let line = Line::new_plus("{c-a}", 1);
+        let mut tokenized = line.tokenize();
+        tokenized.parse_tokens()?;
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Invalid]]);
+        Ok(())
+    }
+
+    #[test]
+    fn token_option_range_less_than_digit() -> Result<()> {
+        let line = Line::new_plus("{3-1}", 1);
+        let mut tokenized = line.tokenize();
+        tokenized.parse_tokens()?;
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Invalid]]);
+        Ok(())
+    }
+
+    #[test]
+    fn token_option_range_less_than_char_space() -> Result<()> {
+        let line = Line::new_plus("{c - a}", 1);
+        let mut tokenized = line.tokenize();
+        tokenized.parse_tokens()?;
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Invalid]]);
+        Ok(())
+    }
+
+    #[test]
+    fn token_option_range_less_than_digit_space() -> Result<()> {
+        let line = Line::new_plus("{3 - 1}", 1);
+        let mut tokenized = line.tokenize();
+        tokenized.parse_tokens()?;
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Invalid]]);
+        Ok(())
+    }
+
+    #[test]
+    fn token_option_range_less_double_char() -> Result<()> {
+        let line = Line::new_plus("{a-dd}", 1);
+        let mut tokenized = line.tokenize();
+        tokenized.parse_tokens()?;
+        println!("=== TOKENS == {:#?}", tokenized);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Invalid]]);
+        Ok(())
+    }
+
+    #[test]
     fn token_mouse() -> Result<()> {
         let line = Line::new_plus("mouse3", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Mouse(3)]]);
         Ok(())
     }
@@ -927,7 +1000,7 @@ mod tests {
     fn token_release_mouse() -> Result<()> {
         let line = Line::new_plus("~mouse3", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![
             Token::Release,
             Token::Mouse(3)
@@ -939,7 +1012,7 @@ mod tests {
     fn token_keysym_code_hex() -> Result<()> {
         let line = Line::new_plus("[0xffed]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
             String::from("Hyper_L")
         ),],]);
@@ -950,7 +1023,7 @@ mod tests {
     fn token_keysym_code() -> Result<()> {
         let line = Line::new_plus("[65517]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
             String::from("Hyper_L")
         ),],]);
@@ -961,7 +1034,7 @@ mod tests {
     fn token_modifier_plus_keysym_code_hex() -> Result<()> {
         let line = Line::new_plus("super+[0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -974,7 +1047,7 @@ mod tests {
     fn token_modifier_plus_keysym_code_hex_space() -> Result<()> {
         let line = Line::new_plus("super + [0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -987,7 +1060,7 @@ mod tests {
     fn token_release_char() -> Result<()> {
         let line = Line::new_plus("~a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![
             Token::Release,
             Token::Char('a')
@@ -999,7 +1072,7 @@ mod tests {
     fn token_release_modifier() -> Result<()> {
         let line = Line::new_plus("super+~a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1012,7 +1085,7 @@ mod tests {
     fn token_release_modifier_space() -> Result<()> {
         let line = Line::new_plus("super + ~a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1025,7 +1098,7 @@ mod tests {
     fn token_release_keysym_code() -> Result<()> {
         let line = Line::new_plus("~[65517]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![vec![
             Token::Release,
             Token::Modifier(String::from("Hyper_L")),
@@ -1037,7 +1110,7 @@ mod tests {
     fn token_release_modifier_plus_keysym_code() -> Result<()> {
         let line = Line::new_plus("super+~[97]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1050,7 +1123,7 @@ mod tests {
     fn token_release_modifier_plus_keysym_code_space() -> Result<()> {
         let line = Line::new_plus("super + ~[97]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1063,7 +1136,7 @@ mod tests {
     fn token_release_modifier_plus_keysym_code_hex() -> Result<()> {
         let line = Line::new_plus("super+~[0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1076,7 +1149,7 @@ mod tests {
     fn token_release_modifier_plus_keysym_code_hex_space() -> Result<()> {
         let line = Line::new_plus("super + ~[0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1089,7 +1162,7 @@ mod tests {
     fn token_two_modifiers() -> Result<()> {
         let line = Line::new_plus("super+ctrl", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1102,7 +1175,7 @@ mod tests {
     fn token_two_modifiers_space() -> Result<()> {
         let line = Line::new_plus("super + ctrl", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1115,7 +1188,7 @@ mod tests {
     fn token_two_modifiers_plus_char() -> Result<()> {
         let line = Line::new_plus("super+ctrl+a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1130,7 +1203,7 @@ mod tests {
     fn token_two_modifiers_plus_char_space() -> Result<()> {
         let line = Line::new_plus("super + ctrl + a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1145,7 +1218,7 @@ mod tests {
     fn token_two_modifiers_plus_keysym_code_hex() -> Result<()> {
         let line = Line::new_plus("super+ctrl+[0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1160,7 +1233,7 @@ mod tests {
     fn token_two_modifiers_plus_keysym_code_hex_space() -> Result<()> {
         let line = Line::new_plus("super + ctrl + [0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1175,7 +1248,7 @@ mod tests {
     fn token_two_modifiers_plus_keysym_code() -> Result<()> {
         let line = Line::new_plus("super+ctrl+[97]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1190,7 +1263,7 @@ mod tests {
     fn token_two_modifiers_plus_keysym_code_space() -> Result<()> {
         let line = Line::new_plus("super + ctrl + [97]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1205,7 +1278,7 @@ mod tests {
     fn token_two_modifiers_one_modifier_keysym_code_hex() -> Result<()> {
         let line = Line::new_plus("super+[0xffe3]+a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1220,7 +1293,7 @@ mod tests {
     fn token_two_modifiers_one_modifier_keysym_code_hex_space() -> Result<()> {
         let line = Line::new_plus("super + [0xffe3] + a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1235,7 +1308,7 @@ mod tests {
     fn token_two_modifiers_modifier_keysym_code() -> Result<()> {
         let line = Line::new_plus("super+[65507]+a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1250,7 +1323,7 @@ mod tests {
     fn token_two_modifiers_modifier_keysym_code_hex() -> Result<()> {
         let line = Line::new_plus("super + [65507] + a", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1265,7 +1338,7 @@ mod tests {
     fn token_two_modifiers_two_keysym_code_hex() -> Result<()> {
         let line = Line::new_plus("super+[0xffe3]+[0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1280,7 +1353,7 @@ mod tests {
     fn token_two_modifiers_two_keysym_code_hex_space() -> Result<()> {
         let line = Line::new_plus("super + [0xffe3] + [0x61]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1295,7 +1368,7 @@ mod tests {
     fn token_two_modifiers_two_keysym_code() -> Result<()> {
         let line = Line::new_plus("super+[65507]+[97]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1310,7 +1383,7 @@ mod tests {
     fn token_two_modifiers_two_keysym_code_space() -> Result<()> {
         let line = Line::new_plus("super + [65507] + [97]", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1325,7 +1398,7 @@ mod tests {
     fn token_release_range() -> Result<()> {
         let line = Line::new_plus("super+~{a-b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1338,7 +1411,7 @@ mod tests {
     fn token_release_range_space() -> Result<()> {
         let line = Line::new_plus("super + ~{a-b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1351,7 +1424,7 @@ mod tests {
     fn token_release_option() -> Result<()> {
         let line = Line::new_plus("super+~{a,b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1364,7 +1437,7 @@ mod tests {
     fn token_release_option_space() -> Result<()> {
         let line = Line::new_plus("super + ~{a,b}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1377,7 +1450,7 @@ mod tests {
     fn token_release_option_three() -> Result<()> {
         let line = Line::new_plus("super+~{a,b,c}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],
@@ -1390,7 +1463,7 @@ mod tests {
     fn token_release_option_three_space() -> Result<()> {
         let line = Line::new_plus("super + ~{a, b, c}", 1);
         let mut tokenized = line.tokenize();
-        tokenized.further_tokenize()?;
+        tokenized.parse_tokens()?;
         assert_eq!(tokenized.tokenized, vec![
             vec![Token::Modifier(String::from("super"))],
             vec![Token::Plus],

@@ -27,4 +27,27 @@ impl XUtility {
     pub(crate) fn setup_connection() -> Result<(RustConnection, usize), Error> {
         RustConnection::connect(None).map_err(Error::Connection)
     }
+
+    // NOTE: Xtrace
+
+    // /// Parse some data and print the resulting object.
+    // ///
+    // /// The result of parsing is returned, but output is already generated on
+    // both success and error. fn print_parse_return<T: TryParse +
+    // std::fmt::Debug>(data: &[u8]) -> Result<T, ParseError> {     match T::
+    // try_parse(data) {         Err(e) => {
+    //             println!("Error while parsing: {:?}", e);
+    //             Err(e)
+    //         }
+    //         Ok((obj, _remaining)) => {
+    //             println!("{:?}", obj);
+    //             Ok(obj)
+    //         }
+    //     }
+    // }
+    //
+    // /// Parse some data and print the resulting object.
+    // fn print_parse<T: TryParse + std::fmt::Debug>(data: &[u8]) {
+    //     let _ = print_parse_return::<T>(data);
+    // }
 }

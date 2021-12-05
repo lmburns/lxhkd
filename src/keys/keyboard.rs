@@ -1,11 +1,13 @@
 //! The `Keyboard` struct which is the raw interface with the X-Server
 
 use super::{
+    chord::Chord,
     event_handler::Handler,
     keys::{self, CharacterMap, ModifierMask, XButton, XKeyCode},
     keysym::{KeysymHash, XKeysym},
 };
 use crate::{
+    config::Config,
     lxhkd_fatal,
     types::{Xid, KEYSYMS_PER_KEYCODE},
 };
@@ -31,6 +33,7 @@ use x11rb::{
             self,
             BoolCtrl,
             ConnectionExt as _,
+            GetCompatMapReply,
             GetControlsReply,
             GetMapReply,
             Group,
@@ -41,9 +44,11 @@ use x11rb::{
         },
         xproto::{
             self,
+            ChangeKeyboardControlAux,
             ConnectionExt,
             EventMask,
             GetKeyboardMappingReply,
+            GetModifierMappingReply,
             Keycode,
             Keysym,
             ModMask,
@@ -125,7 +130,11 @@ pub(crate) struct Keyboard<'a> {
 
 impl<'a> Keyboard<'a> {
     /// Construct a new instance of `Keyboard`
-    pub(crate) fn new(conn: &'a RustConnection, screen_num: usize) -> Result<Self> {
+    pub(crate) fn new(
+        conn: &'a RustConnection,
+        screen_num: usize,
+        config: &Config,
+    ) -> Result<Self> {
         let screen = conn.setup();
         let root = screen.roots[screen_num].clone().root;
 
@@ -133,7 +142,6 @@ impl<'a> Keyboard<'a> {
 
         let (xkb_min, xkb_max) = xkb::X11_XML_VERSION;
 
-        // TODO: do i need both?
         if let Err(e) = conn.xkb_use_extension(xkb_min as u16, xkb_max as u16) {
             lxhkd_fatal!(
                 "xkb version is unsupported. Supported versions: {}-{}: {}",
@@ -142,7 +150,6 @@ impl<'a> Keyboard<'a> {
                 e
             );
         };
-
         if conn
             .extension_information(xkb::X11_EXTENSION_NAME)?
             .is_none()
@@ -184,7 +191,7 @@ impl<'a> Keyboard<'a> {
         };
 
         keyboard.generate_charmap()?;
-        keyboard.set_controls()?;
+        keyboard.set_controls(config)?;
 
         Ok(keyboard)
     }
@@ -220,12 +227,8 @@ impl<'a> Keyboard<'a> {
     // XkbSetControls: https://code.woboq.org/qt5/include/X11/XKBlib.h.html
 
     /// Set the key repeat-delay and repeat-interval
-    pub(crate) fn set_controls(&mut self) -> Result<()> {
+    pub(crate) fn set_controls(&mut self, config: &Config) -> Result<()> {
         let reply = self.get_controls_reply()?;
-
-        // println!("DELAY BEFORE: {}", reply.repeat_delay);
-        // println!("INTERVAL BEFORE: {}", reply.repeat_interval);
-        // self.grab_keyboard()?;
 
         self.autorepeat_delay = reply.repeat_delay;
         self.autorepeat_interval = reply.repeat_interval;
@@ -233,47 +236,135 @@ impl<'a> Keyboard<'a> {
         self.conn
             .xkb_set_controls(
                 ID::USE_CORE_KBD.into(),
-                0_u8,                                    // affect_internal_real_mods
-                reply.internal_mods_real_mods,           // internal_real_mods
-                0_u8,                                    // affect_ignore_lock_real_mods
-                reply.ignore_lock_mods_real_mods,        // ignore_lock_real_mods
-                0_u8,                                    // affect_internal_virtual_mods
-                reply.internal_mods_vmods,               // internal_virtual_mods
-                0_u8,                                    // affect_ignore_lock_virtual_mods
-                reply.ignore_lock_mods_vmods,            // ignore_lock_virtual_mods
-                reply.mouse_keys_dflt_btn,               // mouse_keys_dflt_btn
-                reply.groups_wrap,                       // groups_wrap
-                reply.access_x_option,                   // access_x_options
-                0_u16,                                   // affect_enabled_controls
-                reply.enabled_controls,                  // enabled_controls
-                0_u32,                                   // change_controls
-                u16::from(500 | BoolCtrl::REPEAT_KEYS),  // repeat_delay
-                u16::from(1000 | BoolCtrl::REPEAT_KEYS), // repeat_interval
-                reply.slow_keys_delay,                   // slow_keys_delay
-                reply.debounce_delay,                    // debounce_delay
-                reply.mouse_keys_delay,                  // mouse_keys_delay
-                reply.mouse_keys_interval,               // mouse_keys_interval
-                reply.mouse_keys_time_to_max,            // mouse_keys_time_to_max
-                reply.mouse_keys_max_speed,              // mouse_keys_max_speed
-                reply.mouse_keys_curve,                  // mouse_keys_curve
-                reply.access_x_timeout,                  // access_x_timeout
-                reply.access_x_timeout_mask,             // access_x_timeout_mask
-                reply.access_x_timeout_values,           // access_x_timeout_values
-                reply.access_x_timeout_options_mask,     // access_x_timeout_options_mask
-                reply.access_x_timeout_options_values,   // access_x_timeout_options_values
-                &reply.per_key_repeat,                   // per_key_repeat
+                0_u8,                       // affect_internal_real_mods
+                0_u8,                       // internal_real_mods
+                0_u8,                       // affect_ignore_lock_real_mods
+                0_u8,                       // ignore_lock_real_mods
+                0_u8,                       // affect_internal_virtual_mods
+                0_u8,                       // internal_virtual_mods
+                0_u8,                       // affect_ignore_lock_virtual_mods
+                0_u8,                       // ignore_lock_virtual_mods
+                0_u8,                       // mouse_keys_dflt_btn
+                0_u8,                       // groups_wrap
+                0_u8,                       // access_x_options
+                0_u16,                      // affect_enabled_controls
+                0_u8,                       // enabled_controls
+                xkb::BoolCtrl::REPEAT_KEYS, // change_controls
+                config.global.autorepeat_delay.unwrap_or(reply.repeat_delay), // repeat_delay
+                // The reply from the server is already divided by a thousand
+                // FIX: This is not perfect. If the number isn't evenly divisible by 1000
+                (1000_f32
+                    / f32::from(
+                        config
+                            .global
+                            .autorepeat_interval
+                            .unwrap_or(1000 / reply.repeat_interval),
+                    )) as u16, // repeat_interval
+                0_u16,    // slow_keys_delay
+                0_u16,    // debounce_delay
+                0_u16,    // mouse_keys_delay
+                0_u16,    // mouse_keys_interval
+                0_u16,    // mouse_keys_time_to_max
+                0_u16,    // mouse_keys_max_speed
+                0_i16,    // mouse_keys_curve
+                0_u16,    // access_x_timeout
+                0_u16,    // access_x_timeout_mask
+                0_u16,    // access_x_timeout_values
+                0_u16,    // access_x_timeout_options_mask
+                0_u16,    // access_x_timeout_options_values
+                &[0; 32], // per_key_repeat
             )
-            .context("failed to set XKB controls")?;
+            .context("failed to set XKB controls")?
+            .check()
+            .context("failed to check XKB controls request")?;
 
-        // self.conn.sync()?;
-        // self.flush();
+        // Get reply again to confirm the change took effect
+        let reply = self.get_controls_reply()?;
 
-        // self.ungrab_keyboard();
+        let log_info = |delay: u16, reply: u16, slf: u16, autorepeat: &str| {
+            // Config != New = something went wrong
+            if delay != reply {
+                log::info!(
+                    "X-Server did not set correct {}. {} != {}",
+                    autorepeat.green().bold(),
+                    reply.to_string().red().bold(),
+                    delay.to_string().red().bold()
+                );
+            // Config != Old = it's been changed
+            } else if delay == reply && delay != slf {
+                log::info!(
+                    "changed {}: {} => {}",
+                    autorepeat.green().bold(),
+                    slf.to_string().red().bold(),
+                    delay.to_string().red().bold()
+                );
+            }
+        };
 
-        // let reply = self.get_controls_reply()?;
-        // println!("DELAY AFTER: {}", reply.repeat_delay);
-        // println!("INTERVAL AFTER: {}", reply.repeat_interval);
-        // println!("SLOW BEFORE: {}", reply.slow_keys_delay);
+        if let Some(delay) = config.global.autorepeat_delay {
+            log_info(
+                delay,
+                reply.repeat_delay,
+                self.autorepeat_delay,
+                "autorepeat_delay",
+            );
+        }
+
+        if let Some(interval) = config.global.autorepeat_interval {
+            log_info(
+                interval,
+                1000 / reply.repeat_interval,
+                1000 / self.autorepeat_interval,
+                "autorepeat_interval",
+            );
+        }
+
+        self.autorepeat_delay = reply.repeat_delay;
+        self.autorepeat_interval = reply.repeat_interval;
+
+        Ok(())
+    }
+
+    // TODO: To help further confirm that keys are modifiers, use the returned array
+    // to compare the user set mappings to
+    pub(crate) fn get_modifier_mapping(&self) -> Result<GetModifierMappingReply> {
+        // self.modifiers = reply.keycodes
+        self.conn
+            .get_modifier_mapping()
+            .context("failed to get `GetModifierMappingReply`")?
+            .reply()
+            .context("failed to get XKB `GetModifierMappingReply` reply")
+    }
+
+    /// TODO: Above as well. Returns information about modifiers. Could create a
+    /// modifier array based on index of vmods (if they're always in the same
+    /// spot)
+    pub(crate) fn get_compat_map_reply(&self) -> Result<GetCompatMapReply> {
+        self.conn
+            .xkb_get_compat_map(
+                ID::USE_CORE_KBD.into(),
+                xkb::CMDetail::SYM_INTERP,
+                true,
+                1,
+                20,
+            )
+            .context("failed to get `GetCompatMappingReply`")?
+            .reply()
+            .context("failed to get XKB `GetCompatMappingReply` reply")
+    }
+
+    /// NOTE: Doesn't work
+    /// Turn on and off the `auto_repeat_mode` like `xset`
+    pub(crate) fn set_auto_repeat_mode(&self) -> Result<()> {
+        let aux = ChangeKeyboardControlAux::new()
+            .key(u32::MAX)
+            .auto_repeat_mode(xproto::AutoRepeatMode::OFF);
+
+        self.conn
+            .change_keyboard_control(&aux)
+            .context("failed to change keyboard control")?;
+
+        self.conn.flush()?;
 
         Ok(())
     }
@@ -284,6 +375,7 @@ impl<'a> Keyboard<'a> {
         // | MapPart::EXPLICIT_COMPONENTS
         // | MapPart::KEY_ACTIONS
         // | MapPart::KEY_BEHAVIORS
+
         self.conn
             .xkb_get_map(
                 ID::USE_CORE_KBD.into(), // device spec
@@ -436,60 +528,60 @@ impl<'a> Keyboard<'a> {
     //         .context("failed to check latch lock state")?;
     // }
 
-    // TODO: needs work
-    /// Generate the real modifiers (`shift`, `lock`, `control`, `mod1` -
-    /// `mod5`) by mapping corresponding `modmasks` from the already built
-    /// database from [`generate_charmap`](self::generate_charmap)
-    pub(crate) fn generate_real_mods(&mut self) {
-        for charmap in self.charmap.clone() {
-            match charmap.modmask {
-                // Putting the modmap here requires it be created every time which requires another
-                // clone
-
-                // m if m == 1 << 0 => {
-                //     let mut modmap = charmap;
-                //     modmap.utf = String::from("shift");
-                //     self.charmap.push(modmap);
-                // },
-                m if m == 1 << 1 => {
-                    let mut modmap = charmap;
-                    modmap.utf = String::from("lock");
-                    self.charmap.push(modmap);
-                },
-                m if m == 1 << 2 => {
-                    let mut modmap = charmap;
-                    modmap.utf = String::from("ctrl");
-                    self.charmap.push(modmap);
-                },
-                m if m == 1 << 3 => {
-                    let mut modmap = charmap;
-                    modmap.utf = String::from("mod1");
-                    self.charmap.push(modmap);
-                },
-                m if m == 1 << 4 => {
-                    let mut modmap = charmap;
-                    modmap.utf = String::from("mod2");
-                    self.charmap.push(modmap);
-                },
-                m if m == 1 << 5 => {
-                    let mut modmap = charmap;
-                    modmap.utf = String::from("mod3");
-                    self.charmap.push(modmap);
-                },
-                m if m == 1 << 6 => {
-                    let mut modmap = charmap;
-                    modmap.utf = String::from("mod4");
-                    self.charmap.push(modmap);
-                },
-                m if m == 1 << 7 => {
-                    let mut modmap = charmap;
-                    modmap.utf = String::from("mod5");
-                    self.charmap.push(modmap);
-                },
-                _ => {},
-            }
-        }
-    }
+    // // TODO: needs work
+    // /// Generate the real modifiers (`shift`, `lock`, `control`, `mod1` -
+    // /// `mod5`) by mapping corresponding `modmasks` from the already built
+    // /// database from [`generate_charmap`](self::generate_charmap)
+    // pub(crate) fn generate_real_mods(&mut self) {
+    //     for charmap in self.charmap.clone() {
+    //         match charmap.modmask {
+    //             // Putting the modmap here requires it be created every time
+    // which requires another             // clone
+    //
+    //             // m if m == 1 << 0 => {
+    //             //     let mut modmap = charmap;
+    //             //     modmap.utf = String::from("shift");
+    //             //     self.charmap.push(modmap);
+    //             // },
+    //             m if m == 1 << 1 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("lock");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 2 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("ctrl");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 3 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod1");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 4 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod2");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 5 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod3");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 6 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod4");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 7 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod5");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             _ => {},
+    //         }
+    //     }
+    // }
 
     /// Return the connection to the X-Server
     pub(crate) fn connection(&self) -> &RustConnection {
@@ -521,62 +613,11 @@ impl<'a> Keyboard<'a> {
         println!("{:#?}", self.charmap);
     }
 
-    /// This has a user interface, where one can list the available `Keysym`s in
-    /// a neat format
-    pub(crate) fn list_keysyms(&self) -> Result<()> {
-        use cli_table::{
-            format::{Border, Justify, Separator},
-            print_stdout,
-            Cell,
-            CellStruct,
-            ColorChoice,
-            Style,
-            Table,
-        };
-        let mut table = vec![];
-
-        for charmap in &self.charmap {
-            table.push(vec![
-                charmap.utf.purple().bold().cell().justify(Justify::Left),
-                charmap
-                    .code
-                    .to_string()
-                    .green()
-                    .cell()
-                    .justify(Justify::Left),
-                charmap
-                    .symbol
-                    .to_string()
-                    .yellow()
-                    .cell()
-                    .justify(Justify::Left),
-                charmap
-                    .modmask
-                    .to_string()
-                    .red()
-                    .bold()
-                    .cell()
-                    .justify(Justify::Left),
-            ]);
-        }
-
-        let build_title = |s: &str| -> CellStruct { s.blue().bold().cell().justify(Justify::Left) };
-
-        print_stdout(
-            table
-                .table()
-                .title(vec![
-                    build_title("UTF Keysym"),
-                    build_title("Keycode"),
-                    build_title("Keysym Code"),
-                    build_title("Modmask"),
-                ])
-                .border(Border::builder().build())
-                .separator(Separator::builder().build()),
-        )
-        .context("failure to print table to `stdout`")?;
-
-        Ok(())
+    /// Shorter `wait_for_event`
+    pub(crate) fn wait_for_event(&self) -> Result<Event> {
+        self.conn
+            .wait_for_event()
+            .context("failed to wait for next event")
     }
 
     /// Grab control of all keyboard input
@@ -634,20 +675,20 @@ impl<'a> Keyboard<'a> {
     }
 
     /// Grab a specified key without search through modifiers
-    pub(crate) fn grab_key(&self, keycodes: &[XKeyCode]) {
-        for key in keycodes {
+    pub(crate) fn grab_key(&self, chords: &[Chord]) {
+        for chord in chords {
             if let Err(e) = self.conn.grab_key(
                 false,
                 self.root,
-                key.mask,
-                key.code,
+                chord.modmask(),
+                chord.charmap().code,
                 xproto::GrabMode::ASYNC,
                 xproto::GrabMode::ASYNC,
             ) {
                 lxhkd_fatal!(
                     "failed to grab key {:?} with a mask {}: {}",
-                    key,
-                    key.mask,
+                    chord.charmap().code,
+                    chord.modmask(),
                     e
                 );
             }
@@ -655,12 +696,12 @@ impl<'a> Keyboard<'a> {
     }
 
     /// Ungrab a set of `XKeyCode`'s
-    pub(crate) fn ungrab_key(&self, keycodes: &[XKeyCode]) {
-        for key in keycodes {
+    pub(crate) fn ungrab_key(&self, chords: &[Chord]) {
+        for chord in chords {
             if let Err(e) = self.conn.ungrab_key(
-                key.code,  // key
-                self.root, // window
-                key.mask,  // modifier
+                chord.charmap().code, // key
+                self.root,            // window
+                chord.modmask(),      // modifier
             ) {
                 lxhkd_fatal!("failed to ungrab key: {}", e);
             }
@@ -728,36 +769,32 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    /////
-    // fn on_read_key_press<F>(conn: &xcb::Connection, mut f: F)
-    // where
-    //     F: FnMut(&xcb::KeyPressEvent) -> (),
-
     /// Poll for next event. If no event is available, the nothing is returned
-    pub(crate) fn poll_next_keypress(&self) -> Option<CharacterMap> {
+    /// Non-blocking method
+    pub(crate) fn poll_next_keypress(&self) -> Option<Chord> {
         if let Ok(Some(event)) = self.conn.poll_for_event() {
-            return self.parse_event_to_charmap(&event);
+            return self.parse_event_to_chord(&event);
         }
         None
     }
 
-    /// Wait for next event
-    pub(crate) fn wait_next_keypress(&self) -> Result<CharacterMap> {
+    /// Wait for next event (blocking)
+    pub(crate) fn wait_next_keypress(&self) -> Result<Chord> {
         loop {
-            if let Ok(event) = self.conn.wait_for_event() {
-                if let Some(charmap) = self.parse_event_to_charmap(&event) {
-                    return Ok(charmap);
+            if let Ok(event) = self.wait_for_event() {
+                if let Some(chord) = self.parse_event_to_chord(&event) {
+                    return Ok(chord);
                 }
             }
         }
     }
 
     /// Parse a generic X `Event` to a `CharacterMap` for further parsing
-    pub(crate) fn parse_event_to_charmap(&self, event: &Event) -> Option<CharacterMap> {
+    pub(crate) fn parse_event_to_chord(&self, event: &Event) -> Option<Chord> {
         match event {
             Event::KeyPress(ev) => Handler::handle_keypress(ev, self),
             Event::KeyRelease(ev) => None,
-            Event::ButtonPress(ev) => None,
+            Event::ButtonPress(ev) => lxhkd_fatal!("break"),
             Event::ButtonRelease(ev) => None,
             Event::Error(e) => {
                 lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
@@ -768,25 +805,25 @@ impl<'a> Keyboard<'a> {
 
     /// Listen for the given `XKeyCode`s and return the first as a
     /// `CharacterMap`
-    pub(crate) fn get_next_key(&self, keycodes: &[XKeyCode]) -> Result<CharacterMap> {
+    pub(crate) fn get_next_key(&self, keycodes: &[Chord]) -> Result<Chord> {
         self.grab_key(keycodes);
-        let key = self
+        let chord = self
             .wait_next_keypress()
             .map_err(Error::PollNextCharacterMap)?;
         self.ungrab_key(keycodes);
 
-        Ok(key)
+        Ok(chord)
     }
 
     /// Listen for any keypress, returning the first as a `CharacterMap`
-    pub(crate) fn get_next_any_key(&self) -> Result<CharacterMap> {
+    pub(crate) fn get_next_any_key(&self) -> Result<Chord> {
         self.grab_keyboard().context("failed to grab keyboard")?;
-        let key = self
+        let chord = self
             .wait_next_keypress()
             .map_err(Error::PollNextCharacterMap)?;
         self.ungrab_keyboard();
 
-        Ok(key)
+        Ok(chord)
     }
 
     /// Ungrab everything this program grabbed. Used for when the user stops the
@@ -797,6 +834,64 @@ impl<'a> Keyboard<'a> {
         self.ungrab_any_button();
 
         self.conn.flush()?;
+
+        Ok(())
+    }
+
+    /// This has a user interface, where one can list the available `Keysym`s in
+    /// a neat format
+    pub(crate) fn list_keysyms(&self) -> Result<()> {
+        use cli_table::{
+            format::{Border, Justify, Separator},
+            print_stdout,
+            Cell,
+            CellStruct,
+            ColorChoice,
+            Style,
+            Table,
+        };
+        let mut table = vec![];
+
+        for charmap in &self.charmap {
+            table.push(vec![
+                charmap.utf.purple().bold().cell().justify(Justify::Left),
+                charmap
+                    .code
+                    .to_string()
+                    .green()
+                    .cell()
+                    .justify(Justify::Left),
+                charmap
+                    .symbol
+                    .to_string()
+                    .yellow()
+                    .cell()
+                    .justify(Justify::Left),
+                charmap
+                    .modmask
+                    .to_string()
+                    .red()
+                    .bold()
+                    .cell()
+                    .justify(Justify::Left),
+            ]);
+        }
+
+        let build_title = |s: &str| -> CellStruct { s.blue().bold().cell().justify(Justify::Left) };
+
+        print_stdout(
+            table
+                .table()
+                .title(vec![
+                    build_title("UTF Keysym"),
+                    build_title("Keycode"),
+                    build_title("Keysym Code"),
+                    build_title("Modmask"),
+                ])
+                .border(Border::builder().build())
+                .separator(Separator::builder().build()),
+        )
+        .context("failure to print table to `stdout`")?;
 
         Ok(())
     }

@@ -14,7 +14,6 @@ use colored::Colorize;
 use indexmap::IndexMap;
 use itertools::{Itertools, PeekingNext, PeekingTakeWhile};
 use once_cell::sync::Lazy;
-use rayon::prelude::*;
 use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -414,8 +413,10 @@ impl<'a> TokenizedLine<'a> {
                         mapped.yellow().bold(),
                         charmap
                     );
+
+                    // Skip pushing modifier keys, since the events only register masks
                     modmask.combine_u16(charmap.modmask);
-                    chords.push(Chord::new(&charmap, charmap.modmask));
+                    // chords.push(Chord::new(&charmap, charmap.modmask));
                 } else {
                     log::info!("{} was not found in the `CharacterMap` database", mapped);
                 }
@@ -428,7 +429,7 @@ impl<'a> TokenizedLine<'a> {
                         ch.to_string().yellow().bold(),
                         charmap
                     );
-                    chords.push(Chord::new(&charmap, charmap.modmask));
+                    chords.push(Chord::new(&charmap, modmask.mask()));
                 } else {
                     log::info!("{} was not found in the `CharacterMap` database", ch);
                 }
@@ -586,16 +587,16 @@ impl<'a> TokenizedLine<'a> {
                     {
                         // Split and take every other item
                         let splits = &self.tokenized[vec_idx]
-                            .par_iter()
+                            .iter()
                             .skip(1)
                             .step_by(2)
                             .cloned()
                             .collect::<Vec<_>>();
 
-                        if splits.par_iter().all(|c| matches!(c, Token::Char(_))) {
+                        if splits.iter().all(|c| matches!(c, Token::Char(_))) {
                             self.tokenized[vec_idx] = vec![Token::OptionGroup(
                                 splits
-                                    .par_iter()
+                                    .iter()
                                     .filter_map(|c| match *c {
                                         Token::Char(ch) => Some(ch),
                                         _ => None,

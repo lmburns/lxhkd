@@ -152,6 +152,20 @@ impl ModifierMask {
         self.mask &= !(u16::from(ModMask::LOCK | ModMask::M2));
     }
 
+    /// Return modifiers to ignore when grabbign keys
+    pub(crate) fn return_ignored(mask: ModifierMask) -> [ModifierMask; 4] {
+        let mut iter = [mask, mask, mask, mask];
+
+        // Modifier with the `Lock` mask
+        iter[1].combine_u16(u16::from(ModMask::LOCK));
+        // `Num_Lock` is sometimes (most of the time) set to `mod2`
+        iter[2].combine_u16(u16::from(ModMask::M2));
+        // Some applications register the lock as `Lock` and `mod2` together
+        iter[3].combine_u16(u16::from(ModMask::LOCK | ModMask::M2));
+
+        iter
+    }
+
     /// Determine if the `ModifierMask` contains a `ctrl` modifier
     pub(crate) fn has_ctrl(self) -> bool {
         (self.mask & u16::from(ModMask::CONTROL)) != 0
@@ -237,6 +251,12 @@ impl ModifierMask {
 // Hotkey_Flag_Hyper = (Hotkey_Flag_Cmd | Hotkey_Flag_Alt | Hotkey_Flag_Shift |
 //                      Hotkey_Flag_Control),
 // Hotkey_Flag_Meh = (Hotkey_Flag_Control | Hotkey_Flag_Shift | Hotkey_Flag_Alt)
+
+impl From<u16> for ModifierMask {
+    fn from(mask: u16) -> ModifierMask {
+        ModifierMask::new(mask)
+    }
+}
 
 impl From<ModifierMask> for u16 {
     fn from(mask: ModifierMask) -> u16 {
@@ -477,8 +497,9 @@ impl CharacterMap {
 
     /// Return the `CharacterMap` corresponding to the given `Keysym` code. For
     /// example, in the `KeysymHash` `Hyper_L` is defined as `0xffed`, which is
-    /// what is required for this function
-    pub(crate) fn charmap_from_keysym_code(charmaps: &[Self], keysym: Keysym) -> Self {
+    /// what is required for this function. If nothing is found, a blank
+    /// `CharacterMap` is returned
+    pub(crate) fn charmap_from_keysym_code_or_null(charmaps: &[Self], keysym: Keysym) -> Self {
         if let Some(map) = charmaps.iter().find(|c| c.symbol == keysym) {
             map.clone()
         } else {
@@ -494,7 +515,13 @@ impl CharacterMap {
         }
     }
 
-    /// Return the `CharacterMap` based on the `Keysym` UTF-8 representation
+    /// Return the `CharacterMap` corresponding to the `Keysym` code
+    pub(crate) fn charmap_from_keysym_code(charmaps: &[Self], keysym: Keysym) -> Option<Self> {
+        charmaps.iter().find(|c| c.symbol == keysym).cloned()
+    }
+
+    /// Return the `CharacterMap` corresponding to the `Keysym` UTF-8
+    /// representation
     pub(crate) fn charmap_from_keysym_utf(charmaps: &[Self], utf: &str) -> Option<Self> {
         charmaps.iter().find(|c| c.utf == utf).cloned()
     }

@@ -8,6 +8,14 @@ macro_rules! lxhkd_error {
     })
 }
 
+/// Expand to an info message
+#[macro_export]
+macro_rules! lxhkd_info {
+    ($($err:tt)*) => ({
+        eprintln!("{}: {}", "[lxhkd info]".purple().bold(), format!($($err)*));
+    })
+}
+
 /// Expand to a fatal message
 #[macro_export]
 macro_rules! lxhkd_fatal {

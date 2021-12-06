@@ -21,6 +21,7 @@ use std::{
 const CONFIG_FILE: &str = "lxhkd.yml";
 const LOG_TO_FILE_DEFAULT: bool = true;
 
+/// Default shell to run commands within
 pub(crate) static SHELL: Lazy<String> =
     Lazy::new(|| env::var("SHELL").unwrap_or_else(|_| String::from("/bin/bash")));
 
@@ -38,7 +39,7 @@ fn log_to_file_default() -> bool {
 // =============== GlobalSettings =================
 
 /// Global configuration settings
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub(crate) struct GlobalSettings {
     /// The shell to use for running commands
     pub(crate) shell: Option<String>,
@@ -47,15 +48,17 @@ pub(crate) struct GlobalSettings {
     /// The timeout between keypresses
     pub(crate) timeout: Option<u32>,
 
-    // TODO: Implement this
     /// The delay in which keys begin to repeat
     #[serde(alias = "autorepeat-delay")]
     pub(crate) autorepeat_delay: Option<u16>,
 
-    // TODO: Implement this
     /// The speed in which keys repeat after the delay
     #[serde(alias = "autorepeat-interval")]
     pub(crate) autorepeat_interval: Option<u16>,
+
+    /// The file to write the PID to
+    #[serde(alias = "pid-file")]
+    pub(crate) pid_file: Option<PathBuf>,
 
     /// Whether logs should be written to a file
     #[serde(alias = "log-to-file")]
@@ -67,26 +70,13 @@ pub(crate) struct GlobalSettings {
     pub(crate) log_dir: Option<PathBuf>,
 }
 
-// impl Default for GlobalSettings {
-//     fn default() -> Self {
-//         Self {
-//             shell:               None,
-//             timeout:             None,
-//             autorepeat_delay:    None,
-//             autorepeat_interval: None,
-//             log_to_file:         true,
-//             log_dir:             None,
-//         }
-//     }
-// }
-//
 // =================== Config =====================
 
 /// Configuration file to parse.
 ///
 /// `IndexMap` is used to guarantee that if duplicate bindings are created by
 /// accident, the first one will be the one that is used
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub(crate) struct Config {
     /// Global settings
     #[serde(flatten)]

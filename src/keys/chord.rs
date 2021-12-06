@@ -41,7 +41,8 @@ pub(crate) struct Chord {
     charmap: CharacterMap,
     /// The keysym of the main key in the chord. This is usually not a modifier
     keysym:  XKeysym,
-    /// The total modmask
+    /// The modmask. This is only used for events sent from the X-Server, not
+    /// configuration bindings
     modmask: ModifierMask,
 }
 
@@ -72,10 +73,13 @@ impl Ord for Chord {
 impl Chord {
     /// Create a new `Chord`
     pub(crate) fn new(charmap: &CharacterMap, modmask: u16) -> Self {
+        let mut mask = ModifierMask::new(modmask);
+        mask.filter_ignored();
+
         Self {
             charmap: charmap.clone(),
             keysym:  XKeysym::from(charmap.symbol),
-            modmask: ModifierMask::new(modmask),
+            modmask: mask,
         }
     }
 
@@ -84,12 +88,17 @@ impl Chord {
         self.keysym
     }
 
-    /// Return the [`Modmask`] as a `u16` of the `Chord`
-    pub(crate) fn modmask(&self) -> u16 {
+    /// Return the [`Modmask`] as a `u16` of the `CharacterMap`
+    pub(crate) fn modmask_inner(&self) -> u16 {
         self.charmap.modmask
     }
 
-    /// Return the [`CharacterMap`] as a `u16` of the `Chord`
+    /// Return the the [`ModifierMask`] of the entire `Chord`
+    pub(crate) fn modmask(&self) -> ModifierMask {
+        self.modmask
+    }
+
+    /// Return the [`CharacterMap`] of the `Chord`
     pub(crate) fn charmap(&self) -> &CharacterMap {
         &self.charmap
     }
@@ -160,7 +169,7 @@ impl Chain {
         &self.chords
     }
 
-    /// Return the the total `ModifierMask`
+    /// Return the the total `ModifierMask` as a `u16`
     pub(crate) fn modmask(&self) -> u16 {
         u16::from(self.modmask)
     }
@@ -195,12 +204,22 @@ impl Chain {
         other.chords.starts_with(&self.chords)
     }
 
-    // pub(crate) fn is_prefix2(&self, other: &Chain) -> bool {
-    // }
+    /// Check whether the `Chain`s are matches of each other
+    pub(crate) fn matches(&self, other: &Chain) -> ChainLink {
+        if self.is_prefix_of(other) {
+            if self.chords.len() == other.len() {
+                ChainLink::Full
+            } else {
+                ChainLink::Partial
+            }
+        } else {
+            ChainLink::None
+        }
+    }
 
-    /// Alternate way to match chain
-    pub(crate) fn match_chain(&self, seen: &[Chord]) -> ChainLink {
-        for (idx, chord) in seen.iter().enumerate() {
+    /// Alternate way to match
+    pub(crate) fn match_chain(&self, seen: &Chain) -> ChainLink {
+        for (idx, chord) in seen.chords().iter().enumerate() {
             if self.chords[idx] != *chord {
                 return ChainLink::None;
             }
@@ -224,33 +243,3 @@ pub(crate) enum ChainLink {
     /// They are the same
     Full,
 }
-
-// =============== ChainedAction ==================
-
-// /// The overall configuration bindings mapped to their `Action`
-// #[derive(Debug, PartialEq, Eq, Clone, Default)]
-// pub(crate) struct ChainedAction {
-//     mappings: BTreeMap<Chain, Action>,
-// }
-//
-// impl ChainedAction {
-//     /// Create a blank `ChainedAction`
-//     pub(crate) fn new() -> Self {
-//         Self::default()
-//     }
-//
-//     /// Return the mappings
-//     pub(crate) fn mappings(&self) -> &BTreeMap<Chain, Action> {
-//         &self.mappings
-//     }
-//
-//     /// Insert an item into the `ChainedAction`
-//     pub(crate) fn insert(&mut self, chain: Chain, action: Action) {
-//         self.mappings.insert(chain, action);
-//     }
-//
-//     /// Remove an item from the `ChainedAction`
-//     pub(crate) fn remove(&mut self, chain: &Chain) {
-//         self.mappings.remove(chain);
-//     }
-// }

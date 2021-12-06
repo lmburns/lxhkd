@@ -40,6 +40,7 @@ use x11rb::{
             KeyModMap,
             KeySymMap,
             MapPart,
+            NameDetail,
             ID,
         },
         xproto::{
@@ -64,6 +65,9 @@ use x11rb::{
 // ListComponentsReply = keymaps keycodes
 // GetDeviceKeyMappingReply , xinput = keysyms
 // GetDeviceModifierMappingReply , xinput = keymaps
+// DeviceLedInfo
+// GetDeviceInfoReply
+// GetNamesReply
 
 // =================== Error ======================
 
@@ -113,13 +117,15 @@ pub(crate) struct Keyboard<'a> {
     /// Root window.
     root:                xproto::Window,
     /// The characters, keysyms, etc making up the `Keyboard`
-    pub(crate) charmap:  Vec<CharacterMap>,
+    charmap:             Vec<CharacterMap>,
     /// The device's ID
     device_id:           Xid,
     /// The minimum keycode
     min_keycode:         u8,
     /// The maximum keycode
     max_keycode:         u8,
+    /// The current modifiers on the keyboard that are mapped to keys
+    modmap:              Vec<KeyModMap>,
     /// The number of keysyms per keycode
     keysyms_per_keycode: u8,
     /// The delay in which a key begins repeating
@@ -170,10 +176,6 @@ impl<'a> Keyboard<'a> {
             );
         }
 
-        // let events = (xcb::xkb::EVENT_TYPE_NEW_KEYBOARD_NOTIFY
-        //     | xcb::xkb::EVENT_TYPE_MAP_NOTIFY
-        //     | xcb::xkb::EVENT_TYPE_STATE_NOTIFY) as u16;
-
         // let k = conn.get_keyboard_mapping();
         // let k = conn.get_modifier_mapping();
         // let k = conn.change_keyboard_mapping();
@@ -185,6 +187,7 @@ impl<'a> Keyboard<'a> {
             device_id: 0,
             min_keycode: screen.min_keycode,
             max_keycode: screen.max_keycode,
+            modmap: Vec::new(),
             keysyms_per_keycode: 0,
             autorepeat_interval: 0,
             autorepeat_delay: 0,
@@ -353,22 +356,6 @@ impl<'a> Keyboard<'a> {
             .context("failed to get XKB `GetCompatMappingReply` reply")
     }
 
-    /// NOTE: Doesn't work
-    /// Turn on and off the `auto_repeat_mode` like `xset`
-    pub(crate) fn set_auto_repeat_mode(&self) -> Result<()> {
-        let aux = ChangeKeyboardControlAux::new()
-            .key(u32::MAX)
-            .auto_repeat_mode(xproto::AutoRepeatMode::OFF);
-
-        self.conn
-            .change_keyboard_control(&aux)
-            .context("failed to change keyboard control")?;
-
-        self.conn.flush()?;
-
-        Ok(())
-    }
-
     /// Get the `GetMapReply`. Provides the minimum and maximum keycode, as well
     /// as `Keysyms` which are "real" modifiers and "virtual" modifiers.
     pub(crate) fn get_map_reply(&self) -> Result<GetMapReply> {
@@ -406,49 +393,64 @@ impl<'a> Keyboard<'a> {
             .context("failed to get 'GetMapReply' reply")
     }
 
-    /// Generate the `CharacterMap`
+    /// Generate the [`CharacterMap`](super::keys::CharacterMap)
     pub(crate) fn generate_charmap(&mut self) -> Result<()> {
+        let keysym_hash = KeysymHash::HASH;
         let get_reply = self.get_map_reply()?;
+        let map = get_reply.map;
 
         self.device_id = get_reply.device_id;
 
-        let map = get_reply.map;
-
-        let keysym_hash = KeysymHash::HASH;
-
+        // KeyType {
+        //     mods_mask: 1,
+        //     mods_mods: 1,
+        //     mods_vmods: 0,
+        //     num_levels: 2,
+        //     has_preserve: false,
+        //     map: [
+        //         KTMapEntry {
+        //             active: true,
+        //             mods_mask: 1,
+        //             level: 1,
+        //             mods_mods: 1,
+        //             mods_vmods: 0,
+        //         },
+        //     ],
+        //     preserve: [],
+        // },
         let key_types = map.types_rtrn.as_ref().ok_or(Error::AcquireKeytypes)?;
+        // KeySymMap {
+        //     kt_index: [0, 0, 0, 0],
+        //     group_info: 1,
+        //     width: 1,
+        //     syms: [65307],
+        // },
         let sym_maps = map.syms_rtrn.as_ref().ok_or(Error::AcquireKeysyms)?;
         let key_modmap = map.modmap_rtrn.as_ref().ok_or(Error::AcquireModmap)?;
+        let vmods = map.vmods_rtrn.as_ref().ok_or(Error::AcquireVirtualModmap)?;
         let virtual_mod = map
             .vmodmap_rtrn
             .as_ref()
             .ok_or(Error::AcquireVirtualModmap)?;
 
-        let vmods = map.vmods_rtrn.as_ref().ok_or(Error::AcquireVirtualModmap)?;
-
-        // for v in virtual_mod.iter() {
-        //     println!("vmod: {:#?} -- kc: {:#?}", v.vmods, v.keycode);
-        // }
-
-        // for (unsigned int i = 0; i < num_mod; i++) {
-        //   for (unsigned int j = 0; j < reply->keycodes_per_modifier; j++) {
-        //     xcb_keycode_t mkc = mod_keycodes[i * reply->keycodes_per_modifier + j];
-        //     if (mkc == XCB_NO_SYMBOL) continue;
-        //     if (keycode == mkc) modfield |= (1 << i);
+        self.modmap = key_modmap.clone();
 
         for (idx, symm) in sym_maps.iter().enumerate() {
             let kc = self.min_keycode + idx as u8;
-            let group_cnt = symm.group_info & 0x0f;
             let vmod = virtual_mod
                 .iter()
                 .find(|v| v.keycode == kc)
                 .map_or(0, |v| v.vmods);
 
-            for group in 0..group_cnt {
+            for group in 0..symm.group_info & 0x0f {
                 let key_type_idx = symm.kt_index[group as usize & 0x03];
                 let key_type = key_types
                     .get(key_type_idx as usize)
                     .ok_or_else(|| Error::LookupKeysyms(key_type_idx, symm.clone()))?;
+
+                // if key_type.has_preserve {
+                //     println!("PRESERVER: {:#?}", key_type.preserve);
+                // }
 
                 for level in 0..key_type.num_levels {
                     let keysym = symm.syms[level as usize];
@@ -463,9 +465,7 @@ impl<'a> Keyboard<'a> {
                         }
                     }
 
-                    let hash = KeysymHash::HASH;
-
-                    match hash
+                    match keysym_hash
                         .get_str_from_keysym_code(keysym)
                         .ok_or(Error::LookupKeysymHash(keysym))
                     {
@@ -501,87 +501,11 @@ impl<'a> Keyboard<'a> {
 
         // "L1", "L2"... get added multiple times with different `modmask`
 
+        // TODO: Use lock mods
+        let r = self.conn.xkb_get_state(ID::USE_CORE_KBD.into())?.reply()?;
+
         Ok(())
     }
-
-    // pub(crate) fn latch_lock_state(&self) {
-    //     let lockg = self
-    //         .charmap
-    //         .iter()
-    //         .find(|c| c.utf == "Scroll_Lock")
-    //         .unwrap();
-    //
-    //     let l = self
-    //         .conn
-    //         .xkb_latch_lock_state(
-    //             ID::USE_CORE_KBD.into(),
-    //             0,
-    //             0,
-    //             true,
-    //             Group::from(lockg.group as u8),
-    //             0,
-    //             false,
-    //             0,
-    //         )
-    //         .context("failed to get latch lock state")?
-    //         .check()
-    //         .context("failed to check latch lock state")?;
-    // }
-
-    // // TODO: needs work
-    // /// Generate the real modifiers (`shift`, `lock`, `control`, `mod1` -
-    // /// `mod5`) by mapping corresponding `modmasks` from the already built
-    // /// database from [`generate_charmap`](self::generate_charmap)
-    // pub(crate) fn generate_real_mods(&mut self) {
-    //     for charmap in self.charmap.clone() {
-    //         match charmap.modmask {
-    //             // Putting the modmap here requires it be created every time
-    // which requires another             // clone
-    //
-    //             // m if m == 1 << 0 => {
-    //             //     let mut modmap = charmap;
-    //             //     modmap.utf = String::from("shift");
-    //             //     self.charmap.push(modmap);
-    //             // },
-    //             m if m == 1 << 1 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("lock");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 2 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("ctrl");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 3 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod1");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 4 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod2");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 5 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod3");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 6 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod4");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 7 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod5");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             _ => {},
-    //         }
-    //     }
-    // }
 
     /// Return the connection to the X-Server
     pub(crate) fn connection(&self) -> &RustConnection {
@@ -651,46 +575,31 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    /// Grab a specified key
-    pub(crate) fn grab_key1(&self, keycodes: &[XKeyCode]) {
-        for modifier in &[0, u16::from(ModMask::M2)] {
-            for key in keycodes {
-                let mut mask = key.mask;
-                if *modifier != 0 {
-                    mask.combine_u16(*modifier);
-                }
-
+    /// Grab a specified key plus possible modifiers
+    pub(crate) fn grab_key(&self, chords: &[Chord]) {
+        for chord in chords {
+            for mask in ModifierMask::return_ignored(chord.modmask()) {
+                log::debug!(
+                    "grabbing utf:{}-code:{}-mask:{}",
+                    chord.charmap().utf,
+                    chord.charmap().code,
+                    mask.mask()
+                );
                 if let Err(e) = self.conn.grab_key(
                     false,
                     self.root,
-                    mask,
-                    key.code,
+                    mask.mask(),
+                    chord.charmap().code,
                     xproto::GrabMode::ASYNC,
                     xproto::GrabMode::ASYNC,
                 ) {
-                    lxhkd_fatal!("failed to grab key {:?} at mask {}: {}", key, modifier, e);
+                    lxhkd_fatal!(
+                        "failed to grab key {:?} with a mask {}: {}",
+                        chord.charmap().code,
+                        chord.modmask(),
+                        e
+                    );
                 }
-            }
-        }
-    }
-
-    /// Grab a specified key without search through modifiers
-    pub(crate) fn grab_key(&self, chords: &[Chord]) {
-        for chord in chords {
-            if let Err(e) = self.conn.grab_key(
-                false,
-                self.root,
-                chord.modmask(),
-                chord.charmap().code,
-                xproto::GrabMode::ASYNC,
-                xproto::GrabMode::ASYNC,
-            ) {
-                lxhkd_fatal!(
-                    "failed to grab key {:?} with a mask {}: {}",
-                    chord.charmap().code,
-                    chord.modmask(),
-                    e
-                );
             }
         }
     }
@@ -781,7 +690,7 @@ impl<'a> Keyboard<'a> {
     /// Wait for next event (blocking)
     pub(crate) fn wait_next_keypress(&self) -> Result<Chord> {
         loop {
-            if let Ok(event) = self.wait_for_event() {
+            if let Ok(event) = self.conn.wait_for_event() {
                 if let Some(chord) = self.parse_event_to_chord(&event) {
                     return Ok(chord);
                 }
@@ -803,8 +712,7 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    /// Listen for the given `XKeyCode`s and return the first as a
-    /// `CharacterMap`
+    /// Listen for the first `Chord` in a sequence of `Chord`s
     pub(crate) fn get_next_key(&self, keycodes: &[Chord]) -> Result<Chord> {
         self.grab_key(keycodes);
         let chord = self
@@ -895,6 +803,85 @@ impl<'a> Keyboard<'a> {
 
         Ok(())
     }
+
+    // pub(crate) fn latch_lock_state(&self) {
+    //     let lockg = self
+    //         .charmap
+    //         .iter()
+    //         .find(|c| c.utf == "Scroll_Lock")
+    //         .unwrap();
+    //
+    //     let l = self
+    //         .conn
+    //         .xkb_latch_lock_state(
+    //             ID::USE_CORE_KBD.into(),
+    //             0,
+    //             0,
+    //             true,
+    //             Group::from(lockg.group as u8),
+    //             0,
+    //             false,
+    //             0,
+    //         )
+    //         .context("failed to get latch lock state")?
+    //         .check()
+    //         .context("failed to check latch lock state")?;
+    // }
+
+    // // TODO: needs work
+    // /// Generate the real modifiers (`shift`, `lock`, `control`, `mod1` -
+    // /// `mod5`) by mapping corresponding `modmasks` from the already built
+    // /// database from [`generate_charmap`](self::generate_charmap)
+    // pub(crate) fn generate_real_mods(&mut self) {
+    //     for charmap in self.charmap.clone() {
+    //         match charmap.modmask {
+    //             // Putting the modmap here requires it be created every time
+    // which requires another             // clone
+    //
+    //             // m if m == 1 << 0 => {
+    //             //     let mut modmap = charmap;
+    //             //     modmap.utf = String::from("shift");
+    //             //     self.charmap.push(modmap);
+    //             // },
+    //             m if m == 1 << 1 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("lock");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 2 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("ctrl");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 3 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod1");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 4 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod2");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 5 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod3");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 6 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod4");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             m if m == 1 << 7 => {
+    //                 let mut modmap = charmap;
+    //                 modmap.utf = String::from("mod5");
+    //                 self.charmap.push(modmap);
+    //             },
+    //             _ => {},
+    //         }
+    //     }
+    // }
 
     // pub(crate) fn set_cursor(
     //     &self,

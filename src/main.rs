@@ -72,14 +72,20 @@ use cli::Opts;
 use colored::Colorize;
 use config::Config;
 use keys::{daemon::Daemon, keyboard::Keyboard};
+use nix::{
+    sys::signal::{self, Signal},
+    unistd::{daemon, Pid, Uid},
+};
 use parse::parser::Line;
+use std::{env, fs, path::PathBuf};
 use x11rb::{connection::Connection, protocol::Event};
 use xcb_utils::XUtility;
 
-use x11_keysymdef as ksdef;
+#[cfg(feature = "daemonize")]
+use daemonize::{Daemonize, Stdio, User};
 
 fn main() -> Result<()> {
-    if users::get_effective_uid() == 0 || users::get_current_uid() == 0 {
+    if Uid::effective().is_root() || Uid::current().is_root() {
         lxhkd_fatal!("this program is not meant to be ran as a root user. Try again");
     }
 
@@ -100,8 +106,49 @@ fn main() -> Result<()> {
         log::info!("logging failed to initialize");
     }
 
+    #[cfg(feature = "daemonize")]
+    {
+        let pidpath = &args.pidfile.unwrap_or_else(|| {
+            config
+                .clone()
+                .global
+                .pid_file
+                .unwrap_or_else(|| env::temp_dir().join("lxhkd").join("lxhkd.pid"))
+        });
+
+        log::info!("pid-path: {}", pidpath.display());
+
+        if args.daemonize {
+            Daemonize::new()
+                .pid_file(pidpath)
+                .user(User::Id(Uid::current().into()))
+                .umask(0o600)
+                .exit_action(|| lxhkd_info!("> Daemon started <"))
+                .start()
+                .unwrap_or_else(|_| {
+                    lxhkd_fatal!(
+                        "daemon is already running: {}",
+                        fs::read_to_string(pidpath)
+                            .unwrap_or_else(|_| String::from("N/A"))
+                            .green()
+                            .bold()
+                    )
+                });
+
+            log::info!("daemonized process");
+        } else if args.kill {
+            // TODO: Implement
+            let pid = fs::read_to_string(pidpath).context("failed to read pidfile to string")?;
+            println!("PID: {:#?}", pid);
+
+            // signal::kill(Pid::this(), Signal::SIGINT)?;
+            println!("PID: {:#?}", pid);
+            std::process::exit(1);
+        }
+    }
+
     let (conn, screen_num) = XUtility::setup_connection()?;
-    let keyboard = Keyboard::new(&conn, screen_num, &config)?;
+    let mut keyboard = Keyboard::new(&conn, screen_num, &config)?;
 
     if args.keysyms {
         keyboard.list_keysyms()?;
@@ -109,14 +156,7 @@ fn main() -> Result<()> {
 
     let mut daemon = Daemon::new(&keyboard, &config);
     daemon.process_bindings();
-
-    loop {
-        // keyboard.flush();
-        // let event = keyboard.connection().wait_for_event()?;
-
-        let key = keyboard.get_next_any_key()?;
-        println!("EVENT: {:#?}", key);
-    }
+    daemon.daemonize()?;
 
     Ok(())
 }

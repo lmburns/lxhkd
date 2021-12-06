@@ -363,6 +363,12 @@ impl fmt::Display for ButtonCode {
     }
 }
 
+impl From<u8> for ButtonCode {
+    fn from(b: u8) -> ButtonCode {
+        ButtonCode(b)
+    }
+}
+
 impl From<ButtonCode> for u8 {
     fn from(b: ButtonCode) -> u8 {
         b.0
@@ -390,15 +396,25 @@ impl FromStr for ButtonCode {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub(crate) struct XButton {
     /// The held mask of the modifiers (TODO: Does this need to be ButtonMask?)
-    pub(crate) mask: ModifierMask,
+    mask: ModifierMask,
     /// The code of the button that was pressed
-    pub(crate) code: ButtonCode,
+    code: ButtonCode,
 }
 
 impl XButton {
+    /// Create a new `XButton`
+    pub(crate) fn new(mask: ModifierMask, code: ButtonCode) -> Self {
+        Self { mask, code }
+    }
+
     /// Return the `ButtonCode`
     pub(crate) fn code(self) -> u8 {
         self.code.into()
+    }
+
+    /// Return the `ModifierMask`
+    pub(crate) fn modmask(self) -> ModifierMask {
+        self.mask
     }
 }
 
@@ -434,8 +450,6 @@ impl fmt::Display for XButton {
 // BounceKeys: If pressed more than once in certain time, only on registers
 
 // ================ CharacterMap ==================
-
-// TODO: Create something for Mods
 
 /// Represents an individual character/keypress. If it is found within an
 /// `XModmap` output of `xmodmap -pke`, then it will be in here.
@@ -512,6 +526,19 @@ impl CharacterMap {
                 vmod:    0,
                 group:   0,
             }
+        }
+    }
+
+    /// Return a blank `CharacterMap` for mouse button events
+    pub(crate) fn blank_charmap(name: &str) -> Self {
+        Self {
+            utf:     String::from(name),
+            code:    0,
+            modmask: 0,
+            symbol:  0,
+            level:   0,
+            vmod:    0,
+            group:   0,
         }
     }
 

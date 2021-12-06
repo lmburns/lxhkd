@@ -45,7 +45,7 @@ shellexpand = "2.1.0"
 strip-ansi-escapes = "0.1.1"
 nix = "0.23.0"
 
-# psutil = { version = "3.2.1", default-features = false, features = ["process"] }
+psutil = { version = "3.2.1", default-features = false, features = ["process"] }
 
 [dev-dependencies]
 # pretty_assertions = "0.7.1"

@@ -502,7 +502,7 @@ impl<'a> Keyboard<'a> {
         // "L1", "L2"... get added multiple times with different `modmask`
 
         // TODO: Use lock mods
-        let r = self.conn.xkb_get_state(ID::USE_CORE_KBD.into())?.reply()?;
+        // let r = self.conn.xkb_get_state(ID::USE_CORE_KBD.into())?.reply()?;
 
         Ok(())
     }
@@ -633,21 +633,21 @@ impl<'a> Keyboard<'a> {
         // self.conn.ungrab_button(ButtonIndex::ANY, self.root, ModMask::ANY)?;
 
         // EventMask::POINTER_MOTION
-        let mask = u32::from(
+        let event_mask = u32::from(
             EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION,
         );
-        for modifier in &[0, u16::from(ModMask::M2)] {
-            for button in buttons {
+        for button in buttons {
+            for mask in ModifierMask::return_ignored(button.modmask()) {
                 self.conn.grab_button(
-                    false,                             // owner_events
-                    self.root,                         // grab_window
-                    mask as u16,                       // event_mask
-                    xproto::GrabMode::ASYNC,           // pointer_mode
-                    xproto::GrabMode::ASYNC,           // keyboard_mode
-                    x11rb::NONE,                       // confine_to
-                    x11rb::NONE,                       // cursor
-                    button.code().into(),              // button
-                    u16::from(button.mask) | modifier, // modifiers
+                    false,                   // owner_events
+                    self.root,               // grab_window
+                    event_mask as u16,       // event_mask
+                    xproto::GrabMode::ASYNC, // pointer_mode
+                    xproto::GrabMode::ASYNC, // keyboard_mode
+                    x11rb::NONE,             // confine_to
+                    x11rb::NONE,             // cursor
+                    button.code().into(),    // button
+                    mask.mask(),             // modifiers
                 )?;
             }
         }
@@ -659,9 +659,9 @@ impl<'a> Keyboard<'a> {
     /// Ungrab the given `Button`s
     pub(crate) fn ungrab_button(&self, buttons: &[XButton]) {
         for button in buttons {
-            if let Err(e) = self
-                .conn
-                .ungrab_button(button.code().into(), self.root, button.mask)
+            if let Err(e) =
+                self.conn
+                    .ungrab_button(button.code().into(), self.root, button.modmask())
             {
                 lxhkd_fatal!("failed to ungrab button: {}", button);
             }
@@ -676,74 +676,18 @@ impl<'a> Keyboard<'a> {
         {
             lxhkd_fatal!("failed to ungrab any button: {}", e);
         }
-    }
 
-    /// Poll for next event. If no event is available, the nothing is returned
-    /// Non-blocking method
-    pub(crate) fn poll_next_keypress(&self) -> Option<Chord> {
-        if let Ok(Some(event)) = self.conn.poll_for_event() {
-            return self.parse_event_to_chord(&event);
-        }
-        None
-    }
-
-    /// Wait for next event (blocking)
-    pub(crate) fn wait_next_keypress(&self) -> Result<Chord> {
-        loop {
-            if let Ok(event) = self.conn.wait_for_event() {
-                if let Some(chord) = self.parse_event_to_chord(&event) {
-                    return Ok(chord);
-                }
-            }
-        }
-    }
-
-    /// Parse a generic X `Event` to a `CharacterMap` for further parsing
-    pub(crate) fn parse_event_to_chord(&self, event: &Event) -> Option<Chord> {
-        match event {
-            Event::KeyPress(ev) => Handler::handle_keypress(ev, self),
-            Event::KeyRelease(ev) => None,
-            Event::ButtonPress(ev) => lxhkd_fatal!("break"),
-            Event::ButtonRelease(ev) => None,
-            Event::Error(e) => {
-                lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
-            },
-            _ => None,
-        }
-    }
-
-    /// Listen for the first `Chord` in a sequence of `Chord`s
-    pub(crate) fn get_next_key(&self, keycodes: &[Chord]) -> Result<Chord> {
-        self.grab_key(keycodes);
-        let chord = self
-            .wait_next_keypress()
-            .map_err(Error::PollNextCharacterMap)?;
-        self.ungrab_key(keycodes);
-
-        Ok(chord)
-    }
-
-    /// Listen for any keypress, returning the first as a `CharacterMap`
-    pub(crate) fn get_next_any_key(&self) -> Result<Chord> {
-        self.grab_keyboard().context("failed to grab keyboard")?;
-        let chord = self
-            .wait_next_keypress()
-            .map_err(Error::PollNextCharacterMap)?;
-        self.ungrab_keyboard();
-
-        Ok(chord)
+        self.flush();
     }
 
     /// Ungrab everything this program grabbed. Used for when the user stops the
     /// program
-    pub(crate) fn cleanup(&self) -> Result<()> {
+    pub(crate) fn cleanup(&self) {
         self.ungrab_keyboard();
         self.ungrab_any_key();
         self.ungrab_any_button();
 
-        self.conn.flush()?;
-
-        Ok(())
+        self.flush();
     }
 
     /// This has a user interface, where one can list the available `Keysym`s in
@@ -826,61 +770,6 @@ impl<'a> Keyboard<'a> {
     //         .context("failed to get latch lock state")?
     //         .check()
     //         .context("failed to check latch lock state")?;
-    // }
-
-    // // TODO: needs work
-    // /// Generate the real modifiers (`shift`, `lock`, `control`, `mod1` -
-    // /// `mod5`) by mapping corresponding `modmasks` from the already built
-    // /// database from [`generate_charmap`](self::generate_charmap)
-    // pub(crate) fn generate_real_mods(&mut self) {
-    //     for charmap in self.charmap.clone() {
-    //         match charmap.modmask {
-    //             // Putting the modmap here requires it be created every time
-    // which requires another             // clone
-    //
-    //             // m if m == 1 << 0 => {
-    //             //     let mut modmap = charmap;
-    //             //     modmap.utf = String::from("shift");
-    //             //     self.charmap.push(modmap);
-    //             // },
-    //             m if m == 1 << 1 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("lock");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 2 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("ctrl");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 3 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod1");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 4 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod2");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 5 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod3");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 6 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod4");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             m if m == 1 << 7 => {
-    //                 let mut modmap = charmap;
-    //                 modmap.utf = String::from("mod5");
-    //                 self.charmap.push(modmap);
-    //             },
-    //             _ => {},
-    //         }
-    //     }
     // }
 
     // pub(crate) fn set_cursor(

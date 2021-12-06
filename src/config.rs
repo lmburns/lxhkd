@@ -196,14 +196,14 @@ impl Action {
     pub(crate) fn run(&self, shell: &Option<String>) {
         match self {
             Self::Shell(cmd) => {
-                println!("=== Running ===");
+                log::trace!("running shell: {}", cmd);
                 Self::spawn_shell(cmd, shell.as_ref().unwrap_or(&SHELL.to_string()));
             },
             Self::Remap(remap) => {
-                println!("found remap: {}", remap);
+                log::trace!("running remap: {}", remap);
             },
             Self::Xcape(xcape) => {
-                println!("found xcape: {}", xcape);
+                log::trace!("running xcape: {}", xcape);
             },
         }
     }

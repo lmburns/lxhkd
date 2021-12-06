@@ -56,6 +56,7 @@
     clippy::enum_variant_names
 )]
 
+// mod app;
 mod cli;
 mod config;
 mod keys;
@@ -74,7 +75,7 @@ use config::Config;
 use keys::{daemon::Daemon, keyboard::Keyboard};
 use nix::{
     sys::signal::{self, Signal},
-    unistd::{daemon, Pid, Uid},
+    unistd::{getpid, getppid, Pid, Uid},
 };
 use parse::parser::Line;
 use std::{env, fs, path::PathBuf};
@@ -108,22 +109,23 @@ fn main() -> Result<()> {
 
     #[cfg(feature = "daemonize")]
     {
+        let runtime_dir = dirs::runtime_dir().unwrap_or_else(env::temp_dir);
         let pidpath = &args.pidfile.unwrap_or_else(|| {
             config
                 .clone()
                 .global
                 .pid_file
-                .unwrap_or_else(|| env::temp_dir().join("lxhkd").join("lxhkd.pid"))
+                .unwrap_or_else(|| runtime_dir.join("lxhkd.pid"))
         });
 
-        log::info!("pid-path: {}", pidpath.display());
+        log::info!("pid-path: {}", pidpath.display().to_string().blue().bold());
 
         if args.daemonize {
             Daemonize::new()
                 .pid_file(pidpath)
                 .user(User::Id(Uid::current().into()))
                 .umask(0o600)
-                .exit_action(|| lxhkd_info!("> Daemon started <"))
+                .exit_action(|| log::info!("> Daemon started <"))
                 .start()
                 .unwrap_or_else(|_| {
                     lxhkd_fatal!(
@@ -134,15 +136,38 @@ fn main() -> Result<()> {
                             .bold()
                     )
                 });
-
-            log::info!("daemonized process");
         } else if args.kill {
-            // TODO: Implement
-            let pid = fs::read_to_string(pidpath).context("failed to read pidfile to string")?;
-            println!("PID: {:#?}", pid);
+            // TODO: Check for daemon in background if trying to run in foreground
+            let pid_contents =
+                fs::read_to_string(pidpath).context("failed to read pidfile to string")?;
+            let pid = pid_contents.parse::<i32>().unwrap_or_else(|_| {
+                lxhkd_fatal!(
+                    "unable to kill the daemon. The process has either been terminated manually, \
+                     or the pidfile's contents have been modified. Contents ({})",
+                    pid_contents
+                )
+            });
+            let colored_pid = pid.to_string().green().bold();
 
-            // signal::kill(Pid::this(), Signal::SIGINT)?;
-            println!("PID: {:#?}", pid);
+            // Checking whether or not the process is running before trying to kill it
+            if let Some(_process) = psutil::process::processes()
+                .context("failed to get list of processes")?
+                .iter()
+                .filter_map(|p| p.as_ref().ok())
+                .find(|p| p.pid() as usize == pid as usize)
+            {
+                if let Err(e) = signal::kill(Pid::from_raw(pid), Signal::SIGINT) {
+                    log::error!("failed to terminate process {}: {}", colored_pid, e);
+                } else {
+                    log::info!("successfully terminated daemon: {}", colored_pid);
+                }
+            } else {
+                log::error!(
+                    "the daemon is not currently running or the PID file is incorrect: {}",
+                    colored_pid
+                );
+            }
+
             std::process::exit(1);
         }
     }
@@ -152,6 +177,7 @@ fn main() -> Result<()> {
 
     if args.keysyms {
         keyboard.list_keysyms()?;
+        std::process::exit(1);
     }
 
     let mut daemon = Daemon::new(&keyboard, &config);

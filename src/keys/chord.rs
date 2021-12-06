@@ -5,7 +5,7 @@
 //!     (4) Interface with mappings and bindings
 
 use super::{
-    keys::{CharacterMap, ModifierMask},
+    keys::{ButtonCode, CharacterMap, ModifierMask, XButton},
     keysym::XKeysym,
 };
 use crate::{
@@ -33,17 +33,24 @@ pub(crate) enum Error {
 
 // =================== Chord ======================
 
-/// An abstraction of a single key on the keyboard. Mainly a wrapper for
-/// `CharacterMap`
+/// An abstraction of a step in the process of binding keys.
+///
+/// If this is created from configuration bindings, then everything except
+/// `modmask` and `event_type` are filled in. Once this `Chord` gets parsed by
+/// the [`Handler`](super::event_handler::Handler), the `modmask` and
+/// `event_type` from the reply are filled in
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Chord {
     /// Extra information about the key
-    charmap: CharacterMap,
+    charmap:    CharacterMap,
     /// The keysym of the main key in the chord. This is usually not a modifier
-    keysym:  XKeysym,
-    /// The modmask. This is only used for events sent from the X-Server, not
-    /// configuration bindings
-    modmask: ModifierMask,
+    keysym:     XKeysym,
+    /// The button to the chord
+    button:     XButton,
+    /// Modmask -- only used X-Server events, not configuration
+    modmask:    ModifierMask,
+    /// Event's response code -- only use X-Server events, not configuration
+    event_type: u8,
 }
 
 impl fmt::Display for Chord {
@@ -72,14 +79,21 @@ impl Ord for Chord {
 
 impl Chord {
     /// Create a new `Chord`
-    pub(crate) fn new(charmap: &CharacterMap, modmask: u16) -> Self {
+    pub(crate) fn new(
+        charmap: &CharacterMap,
+        modmask: u16,
+        button: ButtonCode,
+        event_type: u8,
+    ) -> Self {
         let mut mask = ModifierMask::new(modmask);
         mask.filter_ignored();
 
         Self {
             charmap: charmap.clone(),
-            keysym:  XKeysym::from(charmap.symbol),
+            keysym: XKeysym::from(charmap.symbol),
+            button: XButton::new(mask, button),
             modmask: mask,
+            event_type,
         }
     }
 
@@ -103,41 +117,18 @@ impl Chord {
         &self.charmap
     }
 
-    // TODO: Use this here or remove Map modifiers to their correct UTF-8
-    // representations
-    pub(crate) fn map_modifiers<'a>(charmaps: &'a [CharacterMap], tomatch: &'a str) -> &'a str {
-        // Will match the `modmask` level of `modN` keys with the `CharacterMap`
-        // database, returning the actual modifier for that `mod` key. For example,
-        // `match_modmask(3, "Alt_L")` will match `mod1` and if it fails, `Alt_L` will
-        // be used instead
-        let match_modmask = |mask: u16, or: &'a str| -> &'a str {
-            charmaps
-                .iter()
-                .find(|m| m.modmask == (1 << mask))
-                .map_or(or, |a| &a.utf)
-        };
-
-        match tomatch.trim() {
-            "super" | "lsuper" => "Super_L",
-            "rsuper" => "Super_R",
-            "hyper" | "lhyper" => "Hyper_L",
-            "rhyper" => "Hyper_R",
-            "alt" | "lalt" => "Alt_L",
-            "ralt" => "Alt_R",
-            "shift" | "lshift" => "Shift_L",
-            "rshift" => "Shift_R",
-            "ctrl" | "lctrl" => "Control_L",
-            "rctrl" => "Control_R",
-            "mod1" => match_modmask(3, "Alt_L"),
-            "mod2" => match_modmask(4, "Num_Lock"),
-            // This one is probably not set on most people's keyboards
-            "mod3" => match_modmask(5, "Hyper_L"),
-            "mod4" => match_modmask(6, "Super_L"),
-            "mod5" => match_modmask(7, "ISO_Level3_Lock"),
-
-            other => other,
-        }
+    /// Return the [`XButton`] of the `Chord`
+    pub(crate) fn button(&self) -> XButton {
+        self.button
     }
+
+    /// Return the [`event_type`] of the `Chord`
+    pub(crate) fn event_type(&self) -> u8 {
+        self.event_type
+    }
+
+    // /// Make a new `Chord`
+    // pub(crate) fn make() -> Self {}
 }
 
 // =================== Chain ======================
@@ -217,7 +208,7 @@ impl Chain {
         }
     }
 
-    /// Alternate way to match
+    /// Alternate way to match. May be quicker
     pub(crate) fn match_chain(&self, seen: &Chain) -> ChainLink {
         for (idx, chord) in seen.chords().iter().enumerate() {
             if self.chords[idx] != *chord {

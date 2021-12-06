@@ -29,11 +29,12 @@ use std::{
     io::{self, Write},
     panic,
     path::PathBuf,
-    sync::Once,
 };
 
-// /// Used to initialize logging
-// static ONCE: Once = Once::new();
+/// Shorter way of testing if the user wants color for the output of `--help`
+pub(crate) fn wants_color() -> bool {
+    env::var_os("NO_COLOR").is_none()
+}
 
 // TODO: Perhaps use a `SyslogWriter`
 
@@ -140,26 +141,4 @@ pub(crate) fn initialize_logging(config: &Config, args: &Opts) -> Result<PathBuf
     logger.start();
 
     Ok(log_dir)
-}
-
-pub(crate) fn disown() {
-    use std::{env, process};
-
-    if cfg!(debug_assertions) {
-        return;
-    }
-
-    if let Ok(current_exe) = env::current_exe() {
-        assert!(process::Command::new(current_exe)
-            .arg("--nofork")
-            .args(env::args().skip(1))
-            .spawn()
-            .is_ok());
-        process::exit(0);
-    } else {
-        eprintln!(
-            "error in disowning process, cannot obtain the path for the current executable, \
-             continuing without disowning..."
-        );
-    }
 }

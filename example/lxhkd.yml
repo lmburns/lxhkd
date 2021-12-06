@@ -9,6 +9,8 @@ timeout: 300
 ### The speed in which keys repeat after the delay
 # autorepeat_interval: 50
 
+### The file to write the PID to
+# pid_file: /var/run/lxhkd.pid
 ### Whether contents should be written to a file
 log_to_file: true
 ### The file to write the log to

@@ -1,10 +1,12 @@
 //! Parse a configuration file of bindings. Turn them into tokens
 
+// TODO: Parse right hand side of binding
+
 use crate::{
     config::{Action, Config},
     keys::{
         chord::{Chain, Chord},
-        keys::{CharacterMap, ModifierMask},
+        keys::{ButtonCode, CharacterMap, ModifierMask},
         keysym::KeysymHash,
     },
     lxhkd_fatal,
@@ -26,6 +28,19 @@ use std::{
     str::FromStr,
 };
 use thiserror::Error;
+use x11rb::protocol::xproto;
+
+pub(crate) const RELEASE_PREFIX: char = '~';
+pub(crate) const SYM_START: char = '[';
+pub(crate) const SYM_END: char = ']';
+pub(crate) const SYM_SEP: char = '+';
+pub(crate) const SEQ_START: char = '{';
+pub(crate) const SEQ_END: char = '}';
+pub(crate) const SEQ_NONE: char = '_';
+pub(crate) const RANGE_SEP: char = '-';
+pub(crate) const OPTION_SEP: char = ',';
+pub(crate) const GROUP_SEP: char = ':';
+pub(crate) const LINK_SEP: char = ';';
 
 // =================== Errors =====================
 
@@ -52,8 +67,8 @@ impl fmt::Display for Token {
             Self::Char(ch) => format!("Char({})", ch),
             Self::UnknownChar(ref ch) => format!("UnknownChar({})", ch),
             Self::OptionGroup(ref group) => format!("OptionGroup({:#?})", group),
-            Self::OptionStart => String::from("{"),
-            Self::OptionEnd => String::from("}"),
+            Self::SeqStart => String::from("{"),
+            Self::SeqEnd => String::from("}"),
             Self::RangeGroup(ref group) => format!("RangeGroup({:#?})", group),
             Self::Comma => String::from(","),
             Self::Plus => String::from("+"),
@@ -84,9 +99,10 @@ pub(crate) enum Token {
     /// A keysym string
     KeysymString(String),
     /// Final: A mouse button
-    Mouse(usize),
+    Mouse(u8),
     /// Final: A modifier key
     Modifier(String),
+    // FIX: Do text and char really need to be different?
     /// A catch all used before further parsing
     Text(String),
     /// Final: A single character key. E.g., 'a' in this: super + 'a'
@@ -94,9 +110,9 @@ pub(crate) enum Token {
     /// A single character that is not found in `KeysymHash`
     UnknownChar(char),
     /// The start of an option '{'
-    OptionStart,
+    SeqStart,
     /// The end of an option '}'
-    OptionEnd,
+    SeqEnd,
     /// The expanded items within an Option
     OptionGroup(Vec<char>),
     /// The expanded items within an Option
@@ -114,8 +130,6 @@ pub(crate) enum Token {
 }
 
 // ==================== Line ======================
-
-// TODO: Keycode within option range
 
 // /// A single line in a configuration file
 // #[derive(Debug, Clone)]
@@ -215,35 +229,35 @@ impl<'a> Line<'a> {
             while let Some(&c) = chars.peek() {
                 start += 0;
                 match c {
-                    '{' => {
+                    SEQ_START => {
                         token_text(&mut text, &mut res);
-                        res.push(Token::OptionStart);
+                        res.push(Token::SeqStart);
                     },
-                    '}' => {
+                    SEQ_END => {
                         token_text(&mut text, &mut res);
-                        res.push(Token::OptionEnd);
+                        res.push(Token::SeqEnd);
                     },
-                    '[' => {
+                    SYM_START => {
                         token_text(&mut text, &mut res);
                         res.push(Token::KeysymStart);
                     },
-                    ']' => {
+                    SYM_END => {
                         token_text(&mut text, &mut res);
                         res.push(Token::KeysymEnd);
                     },
-                    '-' => {
+                    RANGE_SEP => {
                         token_text(&mut text, &mut res);
                         res.push(Token::Dash);
                     },
-                    '+' => {
+                    SYM_SEP => {
                         token_text(&mut text, &mut res);
                         res.push(Token::Plus);
                     },
-                    ',' => {
+                    OPTION_SEP => {
                         token_text(&mut text, &mut res);
                         res.push(Token::Comma);
                     },
-                    '~' => {
+                    RELEASE_PREFIX => {
                         token_text(&mut text, &mut res);
                         res.push(Token::Release);
                     },
@@ -279,7 +293,7 @@ impl fmt::Display for Line<'_> {
 
 // ============= Regex + Modifiers ================
 
-// TODO: Do something with `fn`
+// TODO: Do something with `fn` and `meh`
 
 #[rustfmt::skip]
 const MODIFIER_STR: &[&str] = &[
@@ -356,6 +370,25 @@ impl<'a> TokenizedLine<'a> {
         split
     }
 
+    /// Map common keysyms to their correct UTF-8 representations
+    pub(crate) fn map_common_syms(charmaps: &'a [CharacterMap], tomatch: &'a str) -> &'a str {
+        match tomatch.trim() {
+            "enter" | "return" => "Return",
+            "escape" | "esc" => "Escape",
+            "tab" => "Tab",
+            "backspace" => "BackSpace",
+            "delete" | "del" => "Delete",
+            "pageup" | "PageUp" => "Page_Up",
+            "pagedown" | "PageDown" => "Page_Down",
+            "up" => "Up",
+            "left" => "Left",
+            "right" => "Right",
+            "down" => "Down",
+
+            other => other,
+        }
+    }
+
     /// Map modifiers to their correct UTF-8 representations
     pub(crate) fn map_modifiers(charmaps: &'a [CharacterMap], tomatch: &'a str) -> &'a str {
         // Will match the `modmask` level of `modN` keys with the `CharacterMap`
@@ -400,41 +433,88 @@ impl<'a> TokenizedLine<'a> {
         let mut is_release = false;
         let mut modmask = ModifierMask::new(0);
 
+        // TODO: Confirm mouse bindings here
+        // TODO: If line contains both `char` and `mouse` return None
         if line.contains(&&Token::Invalid) {
             return None;
         }
 
-        for bind in line {
-            if let Token::Modifier(modifier) = bind {
-                let mapped = Self::map_modifiers(charmaps, modifier);
-                if let Some(charmap) = CharacterMap::charmap_from_keysym_utf(charmaps, mapped) {
-                    log::debug!(
-                        "found `modifier`: {}\n{:#?}",
-                        mapped.yellow().bold(),
-                        charmap
-                    );
+        if line.contains(&&Token::Release) {
+            is_release = true;
+        }
 
-                    // Skip pushing modifier keys, since the events only register masks
-                    modmask.combine_u16(charmap.modmask);
-                    // chords.push(Chord::new(&charmap, charmap.modmask));
-                } else {
-                    log::info!("{} was not found in the `CharacterMap` database", mapped);
-                }
-            } else if let Token::Char(ch) = bind {
-                if let Some(charmap) =
-                    CharacterMap::charmap_from_keysym_utf(charmaps, &ch.to_string())
-                {
+        // for idx in 0..line.len() {
+        // let bind = line[idx];
+        for bind in line {
+            match bind {
+                Token::Modifier(modifier) => {
+                    let mapped = Self::map_modifiers(charmaps, modifier);
+                    if let Some(charmap) = CharacterMap::charmap_from_keysym_utf(charmaps, mapped) {
+                        log::debug!(
+                            "found `modifier`: {}\n{:#?}",
+                            mapped.yellow().bold(),
+                            charmap
+                        );
+
+                        // Skip pushing modifier keys, since the events only register masks
+                        modmask.combine_u16(charmap.modmask);
+                        // chords.push(Chord::new(&charmap, charmap.modmask));
+                    } else {
+                        log::info!("{} was not found in the `CharacterMap` database", mapped);
+                    }
+                },
+                Token::Char(ch) => {
+                    if let Some(charmap) =
+                        CharacterMap::charmap_from_keysym_utf(charmaps, &ch.to_string())
+                    {
+                        log::debug!(
+                            "found `char`: {}\n{:#?}",
+                            ch.to_string().yellow().bold(),
+                            charmap
+                        );
+                        chords.push(Chord::new(
+                            &charmap,
+                            modmask.mask(),
+                            0.into(),
+                            is_release
+                                .then(|| xproto::KEY_RELEASE_EVENT)
+                                .unwrap_or(xproto::KEY_PRESS_EVENT),
+                        ));
+                    } else {
+                        log::info!("{} was not found in the `CharacterMap` database", ch);
+                    }
+                },
+                Token::Text(text) | Token::KeysymString(text) => {
+                    let mapped = Self::map_common_syms(charmaps, text);
+                    if let Some(charmap) = CharacterMap::charmap_from_keysym_utf(charmaps, mapped) {
+                        log::debug!("found `text`: {}\n{:#?}", text.yellow().bold(), charmap);
+                        chords.push(Chord::new(
+                            &charmap,
+                            modmask.mask(),
+                            0.into(),
+                            is_release
+                                .then(|| xproto::KEY_RELEASE_EVENT)
+                                .unwrap_or(xproto::KEY_PRESS_EVENT),
+                        ));
+                    }
+                },
+                Token::Mouse(n) => {
+                    let charmap = CharacterMap::blank_charmap(&format!("mouse{}", n));
                     log::debug!(
-                        "found `char`: {}\n{:#?}",
-                        ch.to_string().yellow().bold(),
+                        "found `mouse`: {}\n{:#?}",
+                        n.to_string().yellow().bold(),
                         charmap
                     );
-                    chords.push(Chord::new(&charmap, modmask.mask()));
-                } else {
-                    log::info!("{} was not found in the `CharacterMap` database", ch);
-                }
-            } else if *bind == Token::Release {
-                is_release = true;
+                    chords.push(Chord::new(
+                        &charmap,
+                        modmask.mask(),
+                        ButtonCode::from(*n),
+                        is_release
+                            .then(|| xproto::BUTTON_RELEASE_EVENT)
+                            .unwrap_or(xproto::BUTTON_PRESS_EVENT),
+                    ));
+                },
+                _ => {},
             }
         }
 
@@ -461,7 +541,6 @@ impl<'a> TokenizedLine<'a> {
         self.split_option();
 
         log::debug!("{}: {:#?}", "Binding".green().bold(), self.tokenized);
-        // println!("RES: {:#?}", self.tokenized);
 
         Ok(())
     }
@@ -482,7 +561,7 @@ impl<'a> TokenizedLine<'a> {
                         } else if MOUSE_PATTERN.is_match(text) {
                             log::trace!("Found {}({})", "Token::Mouse".red().bold(), text);
                             self.tokenized[vec_idx][tok_idx] =
-                                Token::Mouse(text.replace("mouse", "").parse::<usize>().context(
+                                Token::Mouse(text.replace("mouse", "").parse::<u8>().context(
                                     "mouse buttons are defined by 'mouseN' where 'N' is a number \
                                      1-5",
                                 )?);
@@ -571,9 +650,9 @@ impl<'a> TokenizedLine<'a> {
     /// `OptionGroup('a', 'c', 'b')`
     pub(crate) fn split_option(&mut self) {
         for vec_idx in 0..self.tokenized.len() {
-            if self.tokenized[vec_idx].contains(&Token::OptionStart)
+            if self.tokenized[vec_idx].contains(&Token::SeqStart)
                 && self.tokenized[vec_idx].contains(&Token::Comma)
-                && self.tokenized[vec_idx].contains(&Token::OptionEnd)
+                && self.tokenized[vec_idx].contains(&Token::SeqEnd)
             {
                 for tok_idx in 0..self.tokenized[vec_idx].len() {
                     let mut is_release = false;
@@ -582,7 +661,7 @@ impl<'a> TokenizedLine<'a> {
                         self.tokenized[vec_idx].remove(0);
                     }
                     // Don't match the end option because there can be more than two `char`
-                    if let [Token::OptionStart, Token::Char(_), Token::Comma, Token::Char(_)] =
+                    if let [Token::SeqStart, Token::Char(_), Token::Comma, Token::Char(_)] =
                         &self.tokenized[vec_idx][..4]
                     {
                         // Split and take every other item
@@ -623,7 +702,7 @@ impl<'a> TokenizedLine<'a> {
     }
 
     // TODO: Possibly add support for keysym codes in ranges
-    // TODO: Check char len, if ranges are single chars, it will be 5
+    // TODO: Check char len, if ranges are single chars, it will be len 5
 
     /// Expand the range operator within an option to convert {a-c} to
     /// `RangeGroup('a', 'b', 'c')`
@@ -631,9 +710,9 @@ impl<'a> TokenizedLine<'a> {
     pub(crate) fn expand_range(&mut self) {
         for vec_idx in 0..self.tokenized.len() {
             // Shitty way, but check if it contains {..}
-            if self.tokenized[vec_idx].contains(&Token::OptionStart)
+            if self.tokenized[vec_idx].contains(&Token::SeqStart)
                 && self.tokenized[vec_idx].contains(&Token::Dash)
-                && self.tokenized[vec_idx].contains(&Token::OptionEnd)
+                && self.tokenized[vec_idx].contains(&Token::SeqEnd)
             {
                 let tok_idx = 0;
                 let mut is_release = false;
@@ -643,13 +722,13 @@ impl<'a> TokenizedLine<'a> {
                     self.tokenized[vec_idx].remove(0);
                 }
 
-                if self.tokenized[vec_idx][tok_idx] == Token::OptionStart {
+                if self.tokenized[vec_idx][tok_idx] == Token::SeqStart {
                     if let [
-                        Token::OptionStart,
+                        Token::SeqStart,
                         Token::Char(_),
                         Token::Dash,
                         Token::Char(_),
-                        Token::OptionEnd
+                        Token::SeqEnd
                     ] =
                         &self.tokenized[vec_idx][..]
                     {

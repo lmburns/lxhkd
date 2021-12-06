@@ -19,7 +19,10 @@ use indexmap::IndexMap;
 use std::{collections::BTreeMap, fmt};
 use x11rb::{
     connection::Connection,
-    protocol::{xproto::Timestamp, Event},
+    protocol::{
+        xproto::{self, Timestamp},
+        Event,
+    },
 };
 
 // =================== Daemon =====================
@@ -54,6 +57,8 @@ impl<'a> Daemon<'a> {
         }
     }
 
+    // TODO: If binding contains an unknown, the skip it
+
     /// Parse the configuration bindings
     pub(crate) fn process_bindings(&mut self) -> Result<()> {
         let mut parsed_bindings = BTreeMap::new();
@@ -87,7 +92,7 @@ impl<'a> Daemon<'a> {
 
     /// Parse the `Chords` generated from actions happening while the `Daemon`
     /// is running
-    pub(crate) fn process_chords(&mut self, chord: Chord, time: Timestamp) {
+    pub(crate) fn process_chords(&mut self, chord: Chord, time: Timestamp, response_type: u8) {
         if self.last_keypress + self.config.global.timeout.unwrap_or(300) < time {
             self.active_chain.clear();
         }
@@ -104,25 +109,32 @@ impl<'a> Daemon<'a> {
 
                     should_clear = false;
                 },
-                ChainLink::Full => {
-                    log::info!("matched binding: {:?}", action);
-                    log::info!(
-                        "matched utf-code {:#?}",
-                        self.active_chain
-                            .chords()
-                            .iter()
-                            .map(|ch| format!(
-                                "({}-{})",
-                                ch.charmap().utf.clone(),
-                                ch.charmap().code,
-                            ))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
+                // FIX: Differentiate between key press and release
+                // For some reason, when a key is held, it registers a release event after a certain
+                // amout of time
+                ChainLink::Full => match (chain.is_release(), response_type) {
+                    (true, xproto::KEY_RELEASE_EVENT) | (false, xproto::KEY_PRESS_EVENT) => {
+                        log::info!("matched binding: {:?}", action);
+                        log::info!(
+                            "matched utf-code {:#?}",
+                            self.active_chain
+                                .chords()
+                                .iter()
+                                .map(|ch| format!(
+                                    "({}-{})",
+                                    ch.charmap().utf.clone(),
+                                    ch.charmap().code,
+                                ))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
 
-                    action.run(&self.config.global.shell);
-                    should_clear = true;
-                    break;
+                        action.run(&self.config.global.shell);
+
+                        should_clear = true;
+                        break;
+                    },
+                    _ => {},
                 },
             }
         }
@@ -132,29 +144,16 @@ impl<'a> Daemon<'a> {
         }
 
         self.last_keypress = time;
-
-        // for chord in chain.chords() {
-        // if let Some(charmap) = CharacterMap::charmap_from_keysym_code(
-        //     &self.keyboard.charmap(),
-        //     chord.keysym().0,
-        // ) {
-        // }
-        // }
     }
 
-    #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn dtest(&mut self) -> Result<()> {
-        for bind in &self.bindings {
-            println!("bindings == {:#?}", bind);
-        }
-
-        Ok(())
-    }
-
+    /// Start the loop that gets daemonized. Monitor X11 key presses that are
+    /// prefixed by keys found within the configuration file
     #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn daemonize(&mut self) -> Result<()> {
-        let mut idx = 0;
+        // let mut idx = 0;
 
+        // println!("BINDINGS: {:#?}", self.bindings);
+        // std::process::exit(2);
         for chain in self.bindings.keys() {
             self.keyboard.grab_key(chain.chords());
         }
@@ -169,20 +168,34 @@ impl<'a> Daemon<'a> {
             // idx += 1;
 
             let event = self.keyboard.wait_for_event()?;
-            log::trace!("event: {:#?}", event);
 
             match event {
                 Event::KeyPress(ev) => {
-                    if let Some(chord) = Handler::handle_keypress(&ev, self.keyboard) {
-                        self.process_chords(chord, ev.time);
+                    log::trace!("handling key press: {:#?}", event);
+                    if let Some(chord) = Handler::handle_key_press(&ev, self.keyboard) {
+                        self.process_chords(chord, ev.time, ev.response_type);
                     }
+                },
+                Event::KeyRelease(ev) => {
+                    log::trace!("handling key release: {:#?}", event);
+                    if let Some(chord) = Handler::handle_key_release(&ev, self.keyboard) {
+                        self.process_chords(chord, ev.time, ev.response_type);
+                    }
+                },
+                Event::ButtonPress(_ev) => {
+                    log::trace!("handling button press: {:#?}", event);
+                },
+                Event::ButtonRelease(_ev) => {
+                    log::trace!("handling button release: {:#?}", event);
                 },
                 Event::Error(e) => {
                     // TODO: Does this need to exit?
-                    self.keyboard.cleanup()?;
+                    self.keyboard.cleanup();
                     lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
                 },
-                _ => {},
+                _ => {
+                    log::trace!("ignoring event: {:#?}", event);
+                },
             }
         }
 

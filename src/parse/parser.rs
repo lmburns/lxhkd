@@ -1,6 +1,14 @@
-//! Parse a configuration file of bindings. Turn them into tokens
+//! Parse a configuration file of **bindings**. That is, the keys that are
+//! mapped to shell commands.
+//!
+//! This file tokenizes them and returns a `Chain` of `Chord`s
 
 // TODO: Parse right hand side of binding
+// This entire parser really just needs to be rewritten
+
+// YAML special characters
+// [] {} > | * & ! % # ` @ ,
+// ? : -
 
 use crate::{
     config::{Action, Config},
@@ -8,6 +16,7 @@ use crate::{
         chord::{Chain, Chord},
         keys::{ButtonCode, CharacterMap, ModifierMask},
         keysym::KeysymHash,
+        xcape::Xcape,
     },
     lxhkd_fatal,
 };
@@ -29,6 +38,8 @@ use std::{
 };
 use thiserror::Error;
 use x11rb::protocol::xproto;
+
+pub(crate) const EXTRA_PREFIX: char = '=';
 
 pub(crate) const RELEASE_PREFIX: char = '~';
 pub(crate) const SYM_START: char = '[';
@@ -55,11 +66,9 @@ pub(crate) enum Error {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", match *self {
-            Self::Keycode(code) => format!("Keycode({})", code),
             Self::Release => String::from("Release"),
             Self::KeysymStart => String::from("["),
             Self::KeysymEnd => String::from("]"),
-            Self::KeysymCode(code) => format!("Keysym({})", code),
             Self::KeysymString(ref string) => format!("Keysym({})", string),
             Self::Mouse(code) => format!("Mouse({})", code),
             Self::Modifier(ref modifier) => format!("Modifier({})", modifier),
@@ -86,17 +95,14 @@ impl fmt::Display for Token {
 pub(crate) enum Token {
     // MouseRelease(usize),
     // Command,
-    Keycode(u8),
-
+    // Keycode(u8),
     /// Release event (mouse and key)
     Release,
     /// Start of specifying a keysym code '['
     KeysymStart,
     /// End of specifying a keysym code ']'
     KeysymEnd,
-    /// A keysym code keysym that is between the above two
-    KeysymCode(u32),
-    /// A keysym string
+    /// A keysym string that is between the above two
     KeysymString(String),
     /// Final: A mouse button
     Mouse(u8),
@@ -109,13 +115,13 @@ pub(crate) enum Token {
     Char(char),
     /// A single character that is not found in `KeysymHash`
     UnknownChar(char),
-    /// The start of an option '{'
+    /// The start of an sequence '{'
     SeqStart,
-    /// The end of an option '}'
+    /// The end of an sequence '}'
     SeqEnd,
     /// The expanded items within an Option
     OptionGroup(Vec<char>),
-    /// The expanded items within an Option
+    /// The expanded items within a Range
     RangeGroup(Vec<char>),
     /// A comma
     Comma,
@@ -130,16 +136,6 @@ pub(crate) enum Token {
 }
 
 // ==================== Line ======================
-
-// /// A single line in a configuration file
-// #[derive(Debug, Clone)]
-// pub(crate) struct SingleLine {
-//     /// Set of keys that will be mapped to a shell command or remapped to
-//     /// another set of keys
-//     pub(crate) chain:  Chain,
-//     /// Action to be executed (shell command or a remap)
-//     pub(crate) action: Action,
-// }
 
 /// A split line in the configuration file
 #[derive(Debug, Clone, PartialEq)]
@@ -223,11 +219,9 @@ impl<'a> Line<'a> {
         for tok in &self.vector {
             let mut res = vec![];
             let mut text = String::new();
-            let mut chars = tok.chars().multipeek();
-            let mut start = 0;
+            let mut chars = tok.chars().peekable();
 
             while let Some(&c) = chars.peek() {
-                start += 0;
                 match c {
                     SEQ_START => {
                         token_text(&mut text, &mut res);
@@ -317,7 +311,8 @@ const MODIFIER_STR: &[&str] = &[
 //     Lazy::new(||
 // Regex::new(r"(?m)^(([0-9]+)-([0-9]+))|(([a-z]+)-([a-z]+))$").unwrap());
 
-static MOD_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(&MODIFIER_STR.join("|")).unwrap());
+pub(crate) static MOD_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(&MODIFIER_STR.join("|")).unwrap());
 static MOUSE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"mouse([0-9]+)").unwrap());
 
 // =============== TokenizedLine ==================
@@ -403,6 +398,7 @@ impl<'a> TokenizedLine<'a> {
         };
 
         match tomatch.trim() {
+            "caps" | "capslock" => "Caps_Lock",
             "super" | "lsuper" => "Super_L",
             "rsuper" => "Super_R",
             "hyper" | "lhyper" => "Hyper_L",
@@ -426,8 +422,29 @@ impl<'a> TokenizedLine<'a> {
         }
     }
 
+    // pub(crate) fn convert_range_to_chain(&'a mut self, charmaps: &'a
+    // [CharacterMap]) -> Vec<Option<Chain>> { }
+
+    // /// Convert a `TokenizedLine` to an `Xcape`
+    // pub(crate) fn convert_to_xcape(&'a mut self, charmaps: &'a [CharacterMap]) ->
+    // Option<Xcape> {     let line = self.finalize_split();
+    //     let mut chords = vec![];
+    //     let mut is_release = false;
+    //     let mut modmask = ModifierMask::new(0);
+    //
+    //     // TODO: Confirm mouse bindings here
+    //     // TODO: If line contains both `char` and `mouse` return None
+    //     if line.contains(&&Token::Invalid) {
+    //         return None;
+    //     }
+    // }
+
     /// Convert a `TokenizedLine` to a `Chain`
-    pub(crate) fn convert_to_chain(&'a mut self, charmaps: &'a [CharacterMap]) -> Option<Chain> {
+    pub(crate) fn convert_to_chain(
+        &'a mut self,
+        charmaps: &'a [CharacterMap],
+        is_xcape: bool,
+    ) -> Option<Chain> {
         let line = self.finalize_split();
         let mut chords = vec![];
         let mut is_release = false;
@@ -458,9 +475,18 @@ impl<'a> TokenizedLine<'a> {
 
                         // Skip pushing modifier keys, since the events only register masks
                         modmask.combine_u16(charmap.modmask);
-                        // chords.push(Chord::new(&charmap, charmap.modmask));
+                        if is_xcape {
+                            chords.push(Chord::new(
+                                &charmap,
+                                modmask.mask(),
+                                0.into(),
+                                is_release
+                                    .then(|| xproto::KEY_RELEASE_EVENT)
+                                    .unwrap_or(xproto::KEY_PRESS_EVENT),
+                            ));
+                        }
                     } else {
-                        log::info!("{} was not found in the `CharacterMap` database", mapped);
+                        log::error!("{} was not found in the `CharacterMap` database", mapped);
                     }
                 },
                 Token::Char(ch) => {
@@ -484,6 +510,28 @@ impl<'a> TokenizedLine<'a> {
                         log::info!("{} was not found in the `CharacterMap` database", ch);
                     }
                 },
+                Token::RangeGroup(group) =>
+                    for ch in group {
+                        if let Some(charmap) =
+                            CharacterMap::charmap_from_keysym_utf(charmaps, &ch.to_string())
+                        {
+                            log::debug!(
+                                "found `RangeGroup(char)`: {}\n{:#?}",
+                                ch.to_string().yellow().bold(),
+                                charmap
+                            );
+                            chords.push(Chord::new(
+                                &charmap,
+                                modmask.mask(),
+                                0.into(),
+                                is_release
+                                    .then(|| xproto::KEY_RELEASE_EVENT)
+                                    .unwrap_or(xproto::KEY_PRESS_EVENT),
+                            ));
+                        } else {
+                            log::info!("{} was not found in the `CharacterMap` database", ch);
+                        }
+                    },
                 Token::Text(text) | Token::KeysymString(text) => {
                     let mapped = Self::map_common_syms(charmaps, text);
                     if let Some(charmap) = CharacterMap::charmap_from_keysym_utf(charmaps, mapped) {
@@ -664,6 +712,12 @@ impl<'a> TokenizedLine<'a> {
                     if let [Token::SeqStart, Token::Char(_), Token::Comma, Token::Char(_)] =
                         &self.tokenized[vec_idx][..4]
                     {
+                        log::info!(
+                            "<{}> - Found {}({:?})",
+                            self.line.to_string().purple().bold(),
+                            "Token::OptionGroup".red().bold(),
+                            self.tokenized[vec_idx]
+                        );
                         // Split and take every other item
                         let splits = &self.tokenized[vec_idx]
                             .iter()

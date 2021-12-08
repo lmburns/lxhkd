@@ -451,6 +451,8 @@ impl fmt::Display for XButton {
 
 // ================ CharacterMap ==================
 
+// TODO: Turn all fields private
+
 /// Represents an individual character/keypress. If it is found within an
 /// `XModmap` output of `xmodmap -pke`, then it will be in here.
 ///
@@ -480,7 +482,7 @@ pub(crate) struct CharacterMap {
     ///  - THREE_LEVEL: `Shift` + extra modifier (`Lock` doesn't affect)
     ///  - FOUR_LEVEL: `Shift` + extra modifier not found in `THREE_LEVEL`
     pub(crate) level:   u8,
-    /// The virtual modifiiers of a key. If it is not a modifier then this field
+    /// The virtual modifiers of a key. If it is not a modifier then this field
     /// is 0. This field may not be needed
     pub(crate) vmod:    u16,
     /// The group that this key is in
@@ -488,6 +490,41 @@ pub(crate) struct CharacterMap {
 }
 
 impl CharacterMap {
+    /// Return the `utf` representation of the `CharacterMap`
+    pub(crate) fn utf(&self) -> &str {
+        &self.utf
+    }
+
+    /// Return the `code` (`Keycode`) of the `CharacterMap`
+    pub(crate) fn code(&self) -> Keycode {
+        self.code
+    }
+
+    /// Return the `modmask` of the `CharacterMap`
+    pub(crate) fn modmask(&self) -> u16 {
+        self.modmask
+    }
+
+    /// Return the `symbol` (`Keysym`) of the `CharacterMap`
+    pub(crate) fn symbol(&self) -> Keysym {
+        self.symbol
+    }
+
+    /// Return the `level` of the `CharacterMap`
+    pub(crate) fn level(&self) -> u8 {
+        self.level
+    }
+
+    /// Return the `vmod` (virtual modifier) of the `CharacterMap`
+    pub(crate) fn vmod(&self) -> u16 {
+        self.vmod
+    }
+
+    /// Return the `group` of the `CharacterMap`
+    pub(crate) fn group(&self) -> u16 {
+        self.group
+    }
+
     /// Generate a new `CharacterMap`
     pub(crate) fn new(
         keysym_str: String,

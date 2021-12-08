@@ -1,3 +1,8 @@
+//! Linux Hotkey Daemon
+//!     - Bind keys to shell commands
+//!     - Map keys to other keys
+//!     - Set key repeat rate and repeat interval
+
 #![allow(unused)]
 #![deny(
     clippy::all,
@@ -11,11 +16,17 @@
     bad_style,
     const_err,
     // dead_code,
+    ellipsis_inclusive_range_patterns,
+    exported_private_dependencies,
+    ill_formed_attribute_input,
     keyword_idents,
     improper_ctypes,
     macro_use_extern_crate,
     meta_variable_misuse,
     missing_abi,
+    missing_debug_implementations, // can affect compile time/code size
+    missing_docs,
+    // missing_doc_code_examples,
     no_mangle_generic_items,
     non_shorthand_field_patterns,
     noop_method_call,
@@ -24,6 +35,7 @@
     patterns_in_fns_without_body,
     pointer_structural_match,
     private_in_public,
+    pub_use_of_private_extern_crate,
     semicolon_in_expressions_from_macros,
     // single_use_lifetimes,
     trivial_casts,
@@ -55,6 +67,18 @@
     clippy::upper_case_acronyms,
     clippy::enum_variant_names
 )]
+#![cfg_attr(
+    any(test),
+    allow(
+        clippy::expect_fun_call,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::panic_in_result_fn,
+        clippy::unwrap_in_result,
+        clippy::unwrap_used,
+        clippy::wildcard_enum_match_arm,
+    )
+)]
 
 // mod app;
 mod cli;
@@ -66,7 +90,6 @@ mod types;
 mod utils;
 mod xcb_utils;
 
-use crate::{config::Action, keys::keys::CharacterMap};
 use anyhow::{Context, Result};
 use clap::Parser;
 use cli::Opts;
@@ -75,15 +98,14 @@ use config::Config;
 use keys::{daemon::Daemon, keyboard::Keyboard};
 use nix::{
     sys::signal::{self, Signal},
-    unistd::{getpid, getppid, Pid, Uid},
+    unistd::{Pid, Uid},
 };
-use parse::parser::Line;
-use std::{env, fs, path::PathBuf};
+use std::{env, fs};
 use x11rb::{connection::Connection, protocol::Event};
 use xcb_utils::XUtility;
 
 #[cfg(feature = "daemonize")]
-use daemonize::{Daemonize, Stdio, User};
+use daemonize::{Daemonize, User};
 
 fn main() -> Result<()> {
     if Uid::effective().is_root() || Uid::current().is_root() {
@@ -118,9 +140,9 @@ fn main() -> Result<()> {
                 .unwrap_or_else(|| runtime_dir.join("lxhkd.pid"))
         });
 
-        log::info!("pid-path: {}", pidpath.display().to_string().blue().bold());
-
         if args.daemonize {
+            log::info!("pid-path: {}", pidpath.display().to_string().blue().bold());
+
             Daemonize::new()
                 .pid_file(pidpath)
                 .user(User::Id(Uid::current().into()))
@@ -172,8 +194,15 @@ fn main() -> Result<()> {
         }
     }
 
+    // FIXME: Do I need 2 or 3 connections?
+    // Bind/Map connection
     let (conn, screen_num) = XUtility::setup_connection()?;
-    let mut keyboard = Keyboard::new(&conn, screen_num, &config)?;
+    // Xcape control connection
+    let (ctrl_conn, _) = XUtility::setup_connection()?;
+    // Xcape data read connection
+    let (data_conn, _) = XUtility::setup_connection()?;
+
+    let keyboard = Keyboard::new(&conn, &ctrl_conn, &data_conn, screen_num, &config)?;
 
     if args.keysyms {
         keyboard.list_keysyms()?;
@@ -181,7 +210,8 @@ fn main() -> Result<()> {
     }
 
     let mut daemon = Daemon::new(&keyboard, &config);
-    daemon.process_bindings();
+    daemon.process_bindings()?;
+    daemon.process_xcape()?;
     daemon.daemonize()?;
 
     Ok(())

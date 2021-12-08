@@ -44,18 +44,6 @@ pub(crate) struct GlobalSettings {
     /// The shell to use for running commands
     pub(crate) shell: Option<String>,
 
-    // TODO: Implement this
-    /// The timeout between keypresses
-    pub(crate) timeout: Option<u32>,
-
-    /// The delay in which keys begin to repeat
-    #[serde(alias = "autorepeat-delay")]
-    pub(crate) autorepeat_delay: Option<u16>,
-
-    /// The speed in which keys repeat after the delay
-    #[serde(alias = "autorepeat-interval")]
-    pub(crate) autorepeat_interval: Option<u16>,
-
     /// The file to write the PID to
     #[serde(alias = "pid-file")]
     pub(crate) pid_file: Option<PathBuf>,
@@ -68,6 +56,23 @@ pub(crate) struct GlobalSettings {
     /// The directory to write the log to
     #[serde(alias = "log-dir")]
     pub(crate) log_dir: Option<PathBuf>,
+
+    // TODO: Confirm this works
+    /// The timeout between keypresses for regular bindings
+    pub(crate) timeout: Option<u32>,
+
+    /// The amount of time a key can be held before `xcape` registers the
+    /// alterate binding
+    #[serde(alias = "xcape-timeout")]
+    pub(crate) xcape_timeout: Option<u64>,
+
+    /// The delay in which keys begin to repeat
+    #[serde(alias = "autorepeat-delay")]
+    pub(crate) autorepeat_delay: Option<u16>,
+
+    /// The speed in which keys repeat after the delay
+    #[serde(alias = "autorepeat-interval")]
+    pub(crate) autorepeat_interval: Option<u16>,
 }
 
 // =================== Config =====================
@@ -149,7 +154,7 @@ pub(crate) enum Action {
     /// Another keymapping (i.e., Caps_Lock => Escape)
     Remap(Chord),
 
-    /// `xscape` type bindings, where a key is different if pressed vs held
+    /// `xcape` type bindings, where a key is different if pressed vs held
     /// For example:
     ///     - `Caps_Lock` => `Escape` when tapped
     ///     - `Caps_Lock` => `Hyper_L` when held

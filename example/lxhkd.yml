@@ -1,13 +1,6 @@
 ---
 ### The shell to run the commands in
 shell: zsh
-### The timeout between key presses
-timeout: 300
-
-### The delay in which keys begin to repeat
-#autorepeat_delay: 300
-### The speed in which keys repeat after the delay
-# autorepeat_interval: 50
 
 ### The file to write the PID to
 # pid_file: /var/run/lxhkd.pid
@@ -15,6 +8,17 @@ timeout: 300
 log_to_file: true
 ### The file to write the log to
 log_dir: ${XDG_CONFIG_HOME}/lxhkd/log
+
+### The timeout between key presses
+timeout: 300
+
+### The amount of time a key can be held before `xcape` registers the alterate binding
+xcape_timeout: 300
+
+### The delay in which keys begin to repeat
+#autorepeat_delay: 300
+### The speed in which keys repeat after the delay
+# autorepeat_interval: 50
 
 ### The mapping of keys to shell commands
 # bindings:

@@ -5,6 +5,7 @@ use super::{
     event_handler::Handler,
     keys::{self, CharacterMap, ModifierMask, XButton, XKeyCode},
     keysym::{KeysymHash, XKeysym},
+    xcape::Xcape,
 };
 use crate::{
     config::Config,
@@ -12,16 +13,20 @@ use crate::{
     types::{Xid, KEYSYMS_PER_KEYCODE},
 };
 use anyhow::{anyhow, Context, Result};
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Borrow, collections::HashMap, fmt, str::FromStr};
+use std::{
+    borrow::Borrow,
+    collections::HashMap,
+    env,
+    fmt,
+    str::FromStr,
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 use thiserror::Error;
-
-// use xcb::{Cookie, Reply};
-// use xcb_util::keysyms::KeySymbols;
-// use xkbcommon::xkb::{self, Keycode, Keymap, State};
-// use x11::keysym::{XK_Num_Lock, XK_Scroll_Lock};
 
 use x11rb::{
     connection::{Connection, RequestConnection},
@@ -29,6 +34,7 @@ use x11rb::{
     properties,
     protocol::{
         self,
+        record::{self, ConnectionExt as _},
         xkb::{
             self,
             BoolCtrl,
@@ -45,6 +51,7 @@ use x11rb::{
         },
         xproto::{
             self,
+            Allow,
             ChangeKeyboardControlAux,
             ConnectionExt,
             EventMask,
@@ -54,7 +61,7 @@ use x11rb::{
             Keysym,
             ModMask,
         },
-        xtest,
+        xtest::{self, ConnectionExt as _},
         Event,
     },
     rust_connection::RustConnection,
@@ -114,6 +121,8 @@ pub(crate) enum Error {
 pub(crate) struct Keyboard<'a> {
     /// Connection to the X-Server
     conn:                &'a RustConnection,
+    /// Connection to the X-Server to read and control data for `xcape`
+    xcape:               Xcape<'a>,
     /// Root window.
     root:                xproto::Window,
     /// The characters, keysyms, etc making up the `Keyboard`
@@ -138,43 +147,53 @@ impl<'a> Keyboard<'a> {
     /// Construct a new instance of `Keyboard`
     pub(crate) fn new(
         conn: &'a RustConnection,
+        ctrl_conn: &'a RustConnection,
+        data_conn: &'a RustConnection,
         screen_num: usize,
         config: &Config,
     ) -> Result<Self> {
         let screen = conn.setup();
         let root = screen.roots[screen_num].clone().root;
 
-        // TODO: query XF86 ext
+        let use_extension =
+            |conn: &'a RustConnection, extension_name: &'static str| -> Result<()> {
+                if conn.extension_information(extension_name)?.is_none() {
+                    lxhkd_fatal!(
+                        "{} X11 extension is unsupported",
+                        extension_name.green().bold()
+                    );
+                }
 
-        let (xkb_min, xkb_max) = xkb::X11_XML_VERSION;
+                Ok(())
+            };
 
-        if let Err(e) = conn.xkb_use_extension(xkb_min as u16, xkb_max as u16) {
+        // Check `xkb` extension
+        use_extension(conn, xkb::X11_EXTENSION_NAME)?;
+        let (min, max) = xkb::X11_XML_VERSION;
+        if let Err(e) = conn.xkb_use_extension(min as u16, max as u16) {
             lxhkd_fatal!(
-                "xkb version is unsupported. Supported versions: {}-{}: {}",
-                xkb_min,
-                xkb_max,
+                "`xkb` version is unsupported. Supported versions: {}-{}: {}",
+                min,
+                max,
                 e
             );
         };
-        if conn
-            .extension_information(xkb::X11_EXTENSION_NAME)?
-            .is_none()
-        {
+
+        // Check `xtest` extension
+        use_extension(conn, xtest::X11_EXTENSION_NAME)?;
+        // conn.query_extension()
+
+        // Check `record` extension
+        use_extension(conn, record::X11_EXTENSION_NAME)?;
+        let (min, max) = record::X11_XML_VERSION;
+        if let Err(e) = conn.record_query_version(min as u16, max as u16) {
             lxhkd_fatal!(
-                "xkb X11 extension {} is unsupported",
-                xkb::X11_EXTENSION_NAME.green().bold()
+                "`record` version is unsupported. Supported versions: {}-{}: {}",
+                min,
+                max,
+                e
             );
-        }
-        // Used to send test events
-        if conn
-            .extension_information(xtest::X11_EXTENSION_NAME)?
-            .is_none()
-        {
-            lxhkd_fatal!(
-                "xtest X11 extension {} is unsupported",
-                xtest::X11_EXTENSION_NAME.green().bold()
-            );
-        }
+        };
 
         // let k = conn.get_keyboard_mapping();
         // let k = conn.get_modifier_mapping();
@@ -182,6 +201,7 @@ impl<'a> Keyboard<'a> {
 
         let mut keyboard = Self {
             conn,
+            xcape: Xcape::new(ctrl_conn, data_conn, config)?,
             root,
             charmap: Vec::new(),
             device_id: 0,
@@ -285,9 +305,12 @@ impl<'a> Keyboard<'a> {
         let reply = self.get_controls_reply()?;
 
         let log_info = |delay: u16, reply: u16, slf: u16, autorepeat: &str| {
+            // This message will display a supposed error message when it isn't supposed to
+            // if the number does not go into 1000 evenly
+            //
             // Config != New = something went wrong
             if delay != reply {
-                log::info!(
+                log::trace!(
                     "X-Server did not set correct {}. {} != {}",
                     autorepeat.green().bold(),
                     reply.to_string().red().bold(),
@@ -393,6 +416,44 @@ impl<'a> Keyboard<'a> {
             .context("failed to get 'GetMapReply' reply")
     }
 
+    /// Release queued up events from grabbing the keyboard/mouse actively
+    pub(crate) fn allow_events(&self, event_type: u8, replay_event: bool) -> Result<()> {
+        match event_type {
+            xproto::KEY_PRESS_EVENT | xproto::KEY_RELEASE_EVENT =>
+                if replay_event {
+                    self.conn
+                        .allow_events(Allow::REPLAY_POINTER, x11rb::CURRENT_TIME)
+                        .context("failed to allow `REPLAY_POINTER` event")?
+                        .check()
+                        .context("failed to check `REPLAY_POINTER` event")?;
+                } else {
+                    self.conn
+                        .allow_events(Allow::SYNC_POINTER, x11rb::CURRENT_TIME)
+                        .context("failed to allow `SYNC_POINTER` event")?
+                        .check()
+                        .context("failed to check `SYNC_POINTER` event")?;
+                },
+            xproto::BUTTON_PRESS_EVENT | xproto::BUTTON_RELEASE_EVENT =>
+                if replay_event {
+                    self.conn
+                        .allow_events(Allow::REPLAY_KEYBOARD, x11rb::CURRENT_TIME)
+                        .context("failed to allow `REPLAY_KEYBOARD` event")?
+                        .check()
+                        .context("failed to check `REPLAY_KEYBOARD` event")?;
+                } else {
+                    self.conn
+                        .allow_events(Allow::SYNC_KEYBOARD, x11rb::CURRENT_TIME)
+                        .context("failed to allow `SYNC_KEYBOARD` event")?
+                        .check()
+                        .context("failed to check `SYNC_KEYBOARD` event")?;
+                },
+            _ => {},
+        }
+
+        self.flush();
+        Ok(())
+    }
+
     /// Generate the [`CharacterMap`](super::keys::CharacterMap)
     pub(crate) fn generate_charmap(&mut self) -> Result<()> {
         let keysym_hash = KeysymHash::HASH;
@@ -496,15 +557,52 @@ impl<'a> Keyboard<'a> {
             }
         }
 
+        // "L1", "L2"... get added multiple times with different `modmask`
         let reply = self.get_keyboard_mapping_reply()?;
         self.keysyms_per_keycode = reply.keysyms_per_keycode;
 
-        // "L1", "L2"... get added multiple times with different `modmask`
-
         // TODO: Use lock mods
         // let r = self.conn.xkb_get_state(ID::USE_CORE_KBD.into())?.reply()?;
+        // let k = self
+        //     .conn
+        //     .xkb_get_names(
+        //         ID::USE_CORE_KBD.into(),
+        //         NameDetail::SYMBOLS | NameDetail::KEYCODES | NameDetail::KEY_NAMES,
+        //     )?
+        //     .reply()?;
 
         Ok(())
+    }
+
+    /// Return the `ModifierMask` of a key based on its' `Keycode`. This should
+    /// return the same result as the `CharacterMap` database
+    pub(crate) fn modfield_from_keycode(&self, keycode: Keycode) -> Result<ModifierMask> {
+        let mut modmask = ModifierMask::new(0);
+        let r = self
+            .conn
+            .get_modifier_mapping()
+            .context("failed to get modifier mapping")?
+            .reply()
+            .context("failed to get modifier mapping reply")?;
+
+        let num_mod = r.keycodes.len() / usize::from(r.keycodes_per_modifier());
+
+        for i in 0..num_mod {
+            for j in 0..r.keycodes_per_modifier() {
+                if keycode
+                    == r.keycodes[i * usize::from(r.keycodes_per_modifier()) + usize::from(j)]
+                {
+                    modmask.combine_u16(1 << i);
+                }
+            }
+        }
+
+        Ok(modmask)
+    }
+
+    /// Return the `Xcape` object
+    pub(crate) fn xcape(&self) -> &Xcape {
+        &self.xcape
     }
 
     /// Return the connection to the X-Server
@@ -532,12 +630,15 @@ impl<'a> Keyboard<'a> {
         &self.charmap
     }
 
-    /// Debugging function to display the current keysym mappings
-    pub(crate) fn dump_charmap(&self) {
-        println!("{:#?}", self.charmap);
+    /// Shorter `poll_for_event` (non-blocking)
+    pub(crate) fn poll_for_event(&self) -> Option<Event> {
+        self.conn
+            .poll_for_event()
+            .context("failed to poll for next event")
+            .ok()?
     }
 
-    /// Shorter `wait_for_event`
+    /// Shorter `wait_for_event` (blocking)
     pub(crate) fn wait_for_event(&self) -> Result<Event> {
         self.conn
             .wait_for_event()
@@ -681,7 +782,7 @@ impl<'a> Keyboard<'a> {
     }
 
     /// Ungrab everything this program grabbed. Used for when the user stops the
-    /// program
+    /// program or the program gracefully exits
     pub(crate) fn cleanup(&self) {
         self.ungrab_keyboard();
         self.ungrab_any_key();
@@ -690,8 +791,11 @@ impl<'a> Keyboard<'a> {
         self.flush();
     }
 
-    /// This has a user interface, where one can list the available `Keysym`s in
-    /// a neat format
+    /// List the available `Keysym`s a user can use in their mappings. The
+    /// output is in a neat format, and the information is similar to what
+    /// `xmodmap -pke` would show
+    ///
+    /// This function does have a direct command-line interface
     pub(crate) fn list_keysyms(&self) -> Result<()> {
         use cli_table::{
             format::{Border, Justify, Separator},
@@ -744,6 +848,62 @@ impl<'a> Keyboard<'a> {
                 .separator(Separator::builder().build()),
         )
         .context("failure to print table to `stdout`")?;
+
+        Ok(())
+    }
+
+    /// === Debugging Function ===
+    ///
+    /// List the active modifiers
+    pub(crate) fn get_active_mods(&self) {
+        self.charmap
+            .iter()
+            .filter(|c| c.vmod != 0)
+            .for_each(|c| println!("{}: mask: {}", c.utf.green().bold(), c.modmask));
+    }
+
+    /// === Debugging Function ===
+    ///
+    /// Display the current keysym mappings
+    pub(crate) fn dump_charmap(&self) {
+        println!("{:#?}", self.charmap);
+    }
+
+    /// === Debugging Function ===
+    ///
+    /// Display the `Lock` modifier masks. Comparing the masks from the
+    /// `CharacterMap` database and the method in which the modfield is
+    /// extracted from the `Keycode`
+    pub(crate) fn get_lock_fields(&self) -> Result<()> {
+        let num_char = CharacterMap::charmap_from_keysym_utf(&self.charmap, "Num_Lock")
+            .context("couldn't find `Num_Lock` in `CharacterMap`")?;
+        let num_mask = num_char.modmask();
+        let num_from_code = self.modfield_from_keycode(num_char.code())?;
+
+        let scroll_char = CharacterMap::charmap_from_keysym_utf(&self.charmap, "Scroll_Lock")
+            .context("couldn't find `Scroll_Lock` in `CharacterMap`")?;
+        let scroll_mask = scroll_char.modmask();
+        let scroll_from_code = self.modfield_from_keycode(scroll_char.code())?;
+
+        let caps_char = CharacterMap::charmap_from_keysym_utf(&self.charmap, "Caps_Lock")
+            .context("couldn't find `Caps_Lock` in `CharacterMap`")?;
+        let caps_mask = caps_char.modmask();
+        let caps_from_code = self.modfield_from_keycode(caps_char.code())?;
+
+        let bold = |s: &str| -> ColoredString { s.green().bold() };
+        println!(
+            "{}: charmap: {} from code: {}\n{}: charmap: {} from code: {}\n{}: charmap: {} from \
+             code: {}",
+            bold("Num_Lock"),
+            num_mask,
+            num_from_code,
+            bold("Scroll_Lock"),
+            scroll_mask,
+            scroll_from_code,
+            bold("Caps_Lock"),
+            caps_mask,
+            caps_from_code,
+        );
 
         Ok(())
     }

@@ -7,11 +7,12 @@ use super::{
     event_handler::Handler,
     keyboard::Keyboard,
     keys::CharacterMap,
+    xcape_state::{XcapeKeyState, XcapeState},
 };
 use crate::{
     config::{Action, Config},
     lxhkd_fatal,
-    parse::parser::Line,
+    parse::parser::{Line, TokenizedLine},
 };
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -34,8 +35,10 @@ pub(crate) struct Daemon<'a> {
     keyboard:      &'a Keyboard<'a>,
     /// Configuration file of the user
     config:        &'a Config,
-    /// The parsed bindings registered in all modes.
+    /// The parsed bindings registered in all modes
     bindings:      BTreeMap<Chain, Action>,
+    /// The parsed `Xcape` keys
+    xcape:         XcapeState,
     /// Current chain being pressed
     active_chain:  Chain,
     /// Tracker of last keypress
@@ -52,6 +55,7 @@ impl<'a> Daemon<'a> {
             keyboard,
             config,
             bindings: BTreeMap::new(),
+            xcape: XcapeState::default(),
             active_chain: Chain::default(),
             last_keypress: 0,
         }
@@ -71,7 +75,7 @@ impl<'a> Daemon<'a> {
                 let mut tokenized = line.tokenize();
                 tokenized.parse_tokens()?;
 
-                if let Some(chain) = tokenized.convert_to_chain(self.keyboard.charmap()) {
+                if let Some(chain) = tokenized.convert_to_chain(self.keyboard.charmap(), false) {
                     let action = bindings
                         .get_index(idx - 1)
                         .context(
@@ -86,6 +90,49 @@ impl<'a> Daemon<'a> {
         }
 
         self.bindings = parsed_bindings;
+
+        Ok(())
+    }
+
+    /// Parse the `Xcape` bindings, turning them into an `XcapeState` object
+    pub(crate) fn process_xcape(&mut self) -> Result<()> {
+        let mut xcape_state = XcapeState::new(self.keyboard.charmap());
+
+        if let Some(xcape) = &self.config.xcape {
+            for (mut idx, l) in xcape.keys().enumerate() {
+                idx += 1;
+
+                // Keys that are being converted
+                let line = Line::new_plus(l, idx);
+                let mut tokenized_from = line.tokenize();
+                tokenized_from.parse_tokens()?;
+                if let Some(chain_from) =
+                    tokenized_from.convert_to_chain(self.keyboard.charmap(), true)
+                {
+                    let action_to = xcape
+                        .get_index(idx - 1)
+                        .context(
+                            "failed to get valid index of item in configuration's `Xcape` section",
+                        )?
+                        .1;
+
+                    // Keys that are the converted
+                    let line = Line::new_plus(action_to, idx);
+                    let mut tokenized_to = line.tokenize();
+                    tokenized_to.parse_tokens()?;
+                    if let Some(chain_to) =
+                        tokenized_to.convert_to_chain(self.keyboard.charmap(), true)
+                    {
+                        xcape_state.insert(
+                            XcapeKeyState::from_chains(&chain_from, &chain_to)
+                                .context("failed to insert chains into `XcapeKeyState`")?,
+                        );
+                    }
+                }
+            }
+        }
+
+        self.xcape = xcape_state;
 
         Ok(())
     }
@@ -150,66 +197,81 @@ impl<'a> Daemon<'a> {
     /// prefixed by keys found within the configuration file
     #[allow(clippy::unnecessary_wraps)]
     pub(crate) fn daemonize(&mut self) -> Result<()> {
-        // let mut idx = 0;
-
         // println!("BINDINGS: {:#?}", self.bindings);
-        // std::process::exit(2);
+        // std::process::exit(1);
         for chain in self.bindings.keys() {
             self.keyboard.grab_key(chain.chords());
+        }
+
+        if !self.xcape.is_empty() {
+            self.keyboard.xcape().run(&mut self.xcape)?;
         }
 
         loop {
             self.keyboard.flush();
 
-            // if idx == 8 {
-            //     self.keyboard.cleanup()?;
-            //     break;
-            // }
-            // idx += 1;
-
-            let event = self.keyboard.wait_for_event()?;
-
-            match event {
-                Event::KeyPress(ev) => {
-                    log::trace!("handling key press: {:#?}", event);
-                    if let Some(chord) = Handler::handle_key_press(&ev, self.keyboard) {
-                        self.process_chords(chord, ev.time, ev.response_type);
-                    }
-                },
-                Event::KeyRelease(ev) => {
-                    log::trace!("handling key release: {:#?}", event);
-                    if let Some(chord) = Handler::handle_key_release(&ev, self.keyboard) {
-                        self.process_chords(chord, ev.time, ev.response_type);
-                    }
-                },
-                Event::ButtonPress(_ev) => {
-                    log::trace!("handling button press: {:#?}", event);
-                },
-                Event::ButtonRelease(_ev) => {
-                    log::trace!("handling button release: {:#?}", event);
-                },
-                Event::Error(e) => {
-                    // TODO: Does this need to exit?
-                    self.keyboard.cleanup();
-                    lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
-                },
-                _ => {
-                    log::trace!("ignoring event: {:#?}", event);
-                },
+            // let event = self.keyboard.wait_for_event()?;
+            while let Some(event) = self.keyboard.poll_for_event() {
+                match event {
+                    Event::KeyPress(ev) => {
+                        log::trace!("handling key press: {:#?}", event);
+                        if let Some(chord) = Handler::handle_key_press(&ev, self.keyboard) {
+                            self.process_chords(chord, ev.time, ev.response_type);
+                        }
+                        self.keyboard.allow_events(xproto::KEY_PRESS_EVENT, false)?;
+                    },
+                    Event::KeyRelease(ev) => {
+                        log::trace!("handling key release: {:#?}", event);
+                        if let Some(chord) = Handler::handle_key_release(&ev, self.keyboard) {
+                            self.process_chords(chord, ev.time, ev.response_type);
+                        }
+                        self.keyboard
+                            .allow_events(xproto::KEY_RELEASE_EVENT, false)?;
+                    },
+                    Event::ButtonPress(_ev) => {
+                        log::trace!("handling button press: {:#?}", event);
+                    },
+                    Event::ButtonRelease(_ev) => {
+                        log::trace!("handling button release: {:#?}", event);
+                    },
+                    // ====
+                    // TODO: Match first event for these
+                    // ====
+                    Event::XkbNewKeyboardNotify(ev) => {
+                        log::info!(
+                            "`XkbNewKeyboardNotify` event; old_device:{} => new_device:{}",
+                            ev.old_device_id,
+                            ev.device_id
+                        );
+                        todo!(); // update_keymap
+                    },
+                    Event::XkbMapNotify(ev) => {
+                        log::info!("`XkbMapNotify` event; changed:{}", ev.changed);
+                        todo!(); // update_keymap
+                    },
+                    Event::XkbStateNotify(ev) => {
+                        log::info!(
+                            "`XkbStateNotify` event; mods:{}, changed:{}",
+                            ev.mods,
+                            ev.changed
+                        );
+                        todo!(); // update_state
+                    },
+                    //
+                    Event::Error(e) => {
+                        // TODO: Does this need to exit?
+                        self.keyboard.cleanup();
+                        lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
+                    },
+                    _ => {
+                        log::trace!("{}:ignoring event: {:#?}", "bind".red().bold(), event);
+                    },
+                }
             }
         }
 
+        self.keyboard.cleanup();
+
         Ok(())
     }
-}
-
-/// The state of the `Daemon` regarding matching keypresses
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) enum DaemonState<'a> {
-    /// No keys have been pressed that match any existing keybindings
-    None,
-    /// Some keys have been pressed that are a prefix to a `Chain`
-    Prefix,
-    /// All keys in a `Chain` have been pressed
-    Full(&'a Chain, &'a Action),
 }

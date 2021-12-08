@@ -15,6 +15,7 @@ The project aims to combine multiple programs into one
 - [ ] Key press vs release
 - [ ] Key bindings to other keys
 - [ ] Key sequences instead of just key presses (i.e., `alt-l alt-e`)
+- [ ] Support ranges `{a-e}` and options `{a,c}`
 - [ ] Dynamic reloading of configuration file
 - [x] Account for `Lock` modifiers
 - [x] Key bindings to shell commands

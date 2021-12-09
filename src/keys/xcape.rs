@@ -80,25 +80,25 @@ use x11rb::{
 // TODO: These conns may need to be Arc<>
 
 #[derive(Clone)]
-pub(crate) struct Xcape<'a> {
+pub(crate) struct Xcape {
     /// Control connection to the X-Server
-    ctrl_conn: &'a RustConnection,
+    ctrl_conn: Arc<RustConnection>,
     /// Read-data connection to the X-Server
-    data_conn: &'a RustConnection,
+    data_conn: Arc<RustConnection>,
     /// The generated ID to be used for `record`
     id:        u32,
     /// The amount of time before `xcape` registers a new key press
     timeout:   Option<u64>,
 }
 
-impl<'a> Xcape<'a> {
+impl Xcape {
     const RECORD_FROM_SERVER: u8 = 0;
     const START_OF_DATA: u8 = 4;
 
     /// Construct a new instance of `Xcape`
     pub(crate) fn new(
-        ctrl_conn: &'a RustConnection,
-        data_conn: &'a RustConnection,
+        ctrl_conn: RustConnection,
+        data_conn: RustConnection,
         config: &Config,
     ) -> Result<Self> {
         let id = ctrl_conn
@@ -106,8 +106,8 @@ impl<'a> Xcape<'a> {
             .context("failed to generate an ID for `record`")?;
 
         Ok(Self {
-            ctrl_conn,
-            data_conn,
+            ctrl_conn: Arc::new(ctrl_conn),
+            data_conn: Arc::new(data_conn),
             id,
             timeout: config.global.xcape_timeout,
         })
@@ -222,7 +222,11 @@ impl<'a> Xcape<'a> {
     //
     /// Intercept a single packet of data, returning the remaining
     #[allow(clippy::unused_self)]
-    pub(crate) fn intercept(&self, data: &'a [u8], state: &'a mut XcapeState) -> Result<&'a [u8]> {
+    pub(crate) fn intercept<'a>(
+        &self,
+        data: &'a [u8],
+        state: &'a mut XcapeState,
+    ) -> Result<&'a [u8]> {
         match data[0] {
             xproto::KEY_PRESS_EVENT => {
                 let (event, remaining) = xproto::KeyPressEvent::try_parse(data)
@@ -640,7 +644,7 @@ impl<'a> Xcape<'a> {
     }
 }
 
-impl<'a> fmt::Debug for Xcape<'a> {
+impl fmt::Debug for Xcape {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "--Xcape--, timeout: {:?}", self.timeout)
     }

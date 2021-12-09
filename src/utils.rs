@@ -143,3 +143,29 @@ pub(crate) fn initialize_logging(config: &Config, args: &Opts) -> Result<PathBuf
 
     Ok(log_dir)
 }
+
+// pub(crate) fn ss<F, T>(name: &str, body: F) ->
+// Result<crossbeam_utils::thread::ScopedJoinHandle<T>> where
+//     F: FnOnce(&crossbeam_utils::thread::Scope<'_>) -> T + Send,
+//     T: Send + 'static,
+// {
+//     crossbeam_utils::thread::scope(|scope| {
+//         scope
+//             .builder()
+//             .name(String::from(name))
+//             .spawn(body)
+//             .context("failed to spawn thread")?
+//     })
+// }
+
+/// Create a named thread
+pub(crate) fn spawn_thread<F, T>(name: String, body: F) -> Result<thread::JoinHandle<T>>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    thread::Builder::new()
+        .name(name)
+        .spawn(body)
+        .context("failed to spawn thread")
+}

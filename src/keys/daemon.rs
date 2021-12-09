@@ -17,9 +17,12 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use colored::Colorize;
-use crossbeam_channel as channel;
 use indexmap::IndexMap;
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    sync::{Arc, Mutex},
+};
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -28,15 +31,18 @@ use x11rb::{
     },
 };
 
+use crossbeam_channel as channel;
+use crossbeam_utils::thread;
+
 // =================== Daemon =====================
 
 /// Global daemon state object.
 #[derive(Debug)]
-pub(crate) struct Daemon<'a> {
+pub(crate) struct Daemon {
     /// The current keyboard setup
-    keyboard:      &'a Keyboard<'a>,
+    keyboard:      Arc<Keyboard>,
     /// Configuration file of the user
-    config:        &'a Config,
+    config:        Config,
     /// The parsed bindings registered in all modes
     bindings:      BTreeMap<Chain, Action>,
     /// The parsed `Xcape` keys
@@ -49,12 +55,12 @@ pub(crate) struct Daemon<'a> {
 // /// Max allowed time between keypresses
 // keypress_timeout: u32,
 
-impl<'a> Daemon<'a> {
+impl Daemon {
     /// Create a new `Daemon`
-    pub(crate) fn new(keyboard: &'a Keyboard<'a>, config: &'a Config) -> Self {
+    pub(crate) fn new(keyboard: Keyboard, config: Config) -> Self {
         // keypress_timeout: config.global.timeout.unwrap_or(300),
         Self {
-            keyboard,
+            keyboard: Arc::new(keyboard),
             config,
             bindings: BTreeMap::new(),
             xcape: XcapeState::default(),
@@ -203,7 +209,7 @@ impl<'a> Daemon<'a> {
     /// Start the loop that gets daemonized. Monitor X11 key presses that are
     /// prefixed by keys found within the configuration file
     #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn daemonize(&mut self) -> Result<()> {
+    pub(crate) fn daemonize(self) -> Result<()> {
         // println!("BINDINGS: {:#?}", self.bindings);
         // std::process::exit(1);
 
@@ -211,74 +217,105 @@ impl<'a> Daemon<'a> {
             self.keyboard.grab_key(chain.chords());
         }
 
-        if !self.xcape.is_empty() {
-            self.keyboard.xcape().run(&mut self.xcape)?;
-        }
+        // if !self.xcape.is_empty() {
+        //     self.keyboard.xcape().run(&mut self.xcape)?;
+        // }
+
+        let (tx_event, rx_event) = channel::unbounded();
+
+        std::thread::spawn(move || {
+            let event = self.keyboard.connection().wait_for_event();
+            println!("=== found event");
+            if let Err(e) = tx_event.send(event) {
+                println!("error sending event");
+            }
+        });
+        // thread::scope(move |scope| {
+        //     let keyboard = keyboard.clone();
+        //     scope.spawn(move |_| {
+        //         let keyboard = keyboard;
+        //         println!("===within scope");
+        //         let event = self.keyboard.wait_for_event();
+        //         println!("=== found event");
+        //         if let Err(e) = tx_event.send(event) {
+        //             println!("error sending event");
+        //             return;
+        //         }
+        //     });
+        // });
 
         loop {
-            self.keyboard.flush();
-
-            // let event = self.keyboard.wait_for_event()?;
-            while let Some(event) = self.keyboard.poll_for_event() {
-                match event {
-                    Event::KeyPress(ev) => {
-                        log::trace!("handling key press: {:#?}", event);
-                        if let Some(chord) = Handler::handle_key_press(&ev, self.keyboard) {
-                            self.process_chords(chord, ev.time, ev.response_type);
-                        }
-                        self.keyboard.allow_events(xproto::KEY_PRESS_EVENT, false)?;
-                    },
-                    Event::KeyRelease(ev) => {
-                        log::trace!("handling key release: {:#?}", event);
-                        if let Some(chord) = Handler::handle_key_release(&ev, self.keyboard) {
-                            self.process_chords(chord, ev.time, ev.response_type);
-                        }
-                        self.keyboard
-                            .allow_events(xproto::KEY_RELEASE_EVENT, false)?;
-                    },
-                    Event::ButtonPress(_ev) => {
-                        log::trace!("handling button press: {:#?}", event);
-                    },
-                    Event::ButtonRelease(_ev) => {
-                        log::trace!("handling button release: {:#?}", event);
-                    },
-                    // ====
-                    // TODO: Match first event for these
-                    // ====
-                    Event::XkbNewKeyboardNotify(ev) => {
-                        log::info!(
-                            "`XkbNewKeyboardNotify` event; old_device:{} => new_device:{}",
-                            ev.old_device_id,
-                            ev.device_id
-                        );
-                        todo!(); // update_keymap
-                    },
-                    Event::XkbMapNotify(ev) => {
-                        log::info!("`XkbMapNotify` event; changed:{}", ev.changed);
-                        todo!(); // update_keymap
-                    },
-                    Event::XkbStateNotify(ev) => {
-                        log::info!(
-                            "`XkbStateNotify` event; mods:{}, changed:{}",
-                            ev.mods,
-                            ev.changed
-                        );
-                        todo!(); // update_state
-                    },
-                    //
-                    Event::Error(e) => {
-                        // TODO: Does this need to exit?
-                        self.keyboard.cleanup();
-                        lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
-                    },
-                    _ => {
-                        log::trace!("{}:ignoring event: {:#?}", "bind".red().bold(), event);
-                    },
+            crossbeam_channel::select! {
+                recv(rx_event) -> event => {
+                    println!("EVENT: {:#?}", event);
                 }
             }
         }
 
-        self.keyboard.cleanup();
+        // loop {
+        //     self.keyboard.flush();
+        //
+        //     // let event = self.keyboard.wait_for_event()?;
+        //     while let Some(event) = self.keyboard.poll_for_event() {
+        //         match event {
+        //             Event::KeyPress(ev) => {
+        //                 log::trace!("handling key press: {:#?}", event);
+        //                 if let Some(chord) = Handler::handle_key_press(&ev,
+        // &self.keyboard) {                     self.process_chords(chord,
+        // ev.time, ev.response_type);                 }
+        //                 self.keyboard.allow_events(xproto::KEY_PRESS_EVENT, false)?;
+        //             },
+        //             Event::KeyRelease(ev) => {
+        //                 log::trace!("handling key release: {:#?}", event);
+        //                 if let Some(chord) = Handler::handle_key_release(&ev,
+        // &self.keyboard) {                     self.process_chords(chord,
+        // ev.time, ev.response_type);                 }
+        //                 self.keyboard
+        //                     .allow_events(xproto::KEY_RELEASE_EVENT, false)?;
+        //             },
+        //             Event::ButtonPress(_ev) => {
+        //                 log::trace!("handling button press: {:#?}", event);
+        //             },
+        //             Event::ButtonRelease(_ev) => {
+        //                 log::trace!("handling button release: {:#?}", event);
+        //             },
+        //             // ====
+        //             // TODO: Match first event for these
+        //             // ====
+        //             Event::XkbNewKeyboardNotify(ev) => {
+        //                 log::info!(
+        //                     "`XkbNewKeyboardNotify` event; old_device:{} =>
+        // new_device:{}",                     ev.old_device_id,
+        //                     ev.device_id
+        //                 );
+        //                 todo!(); // update_keymap
+        //             },
+        //             Event::XkbMapNotify(ev) => {
+        //                 log::info!("`XkbMapNotify` event; changed:{}", ev.changed);
+        //                 todo!(); // update_keymap
+        //             },
+        //             Event::XkbStateNotify(ev) => {
+        //                 log::info!(
+        //                     "`XkbStateNotify` event; mods:{}, changed:{}",
+        //                     ev.mods,
+        //                     ev.changed
+        //                 );
+        //                 todo!(); // update_state
+        //             },
+        //             //
+        //             Event::Error(e) => {
+        //                 // TODO: Does this need to exit?
+        //                 self.keyboard.cleanup();
+        //                 lxhkd_fatal!("there was an error with the X-Server: {:?}",
+        // e);             },
+        //             _ => {
+        //                 log::trace!("{}:ignoring event: {:#?}", "bind".red().bold(),
+        // event);             },
+        //         }
+        //     }
+        // }
+
+        // self.keyboard.cleanup();
 
         Ok(())
     }

@@ -215,9 +215,18 @@ impl Daemon {
             self.keyboard.grab_key(chain.chords());
         }
 
-        if !self.xcape.is_empty() {
-            self.keyboard.xcape().run(&mut self.xcape)?;
-        }
+        // for ch in self.xcape.remapped_keys() {
+        //     self.keyboard.grab_key(&[Chord::new(
+        //         ch.from_keys(),
+        //         ch.from_keys().modmask(),
+        //         0.into(),
+        //         xproto::KEY_PRESS_EVENT,
+        //     )]);
+        // }
+        //
+        // if !self.xcape.is_empty() {
+        //     self.keyboard.xcape().run(&mut self.xcape)?;
+        // }
 
         loop {
             self.keyboard.flush();

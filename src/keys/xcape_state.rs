@@ -16,7 +16,7 @@ use regex::{Captures, Regex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use x11rb::protocol::xproto::{Keycode, Keysym, Timestamp};
 
-// ================ GenericEvent ==================
+// ================ XcapeKeyState =================
 
 /// Struct that holds data of a single key.
 /// This key is mapped to another and will be replaced when tapped

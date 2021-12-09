@@ -259,14 +259,11 @@ impl<'a> Line<'a> {
                         token_text(&mut text, &mut res);
                     },
                     ch => {
-                        // println!("letter: {:#?} peek1: {:#?}", ch, chars.peek());
                         text.push(ch);
                     },
                 }
                 chars.next();
             }
-            // println!("RES: {:#?}", res);
-            // println!("ALL: {:#?}", all_res);
             if !text.is_empty() {
                 res.push(Token::Text(text));
             }
@@ -291,14 +288,14 @@ impl fmt::Display for Line<'_> {
 
 #[rustfmt::skip]
 const MODIFIER_STR: &[&str] = &[
-    "alt",   "lalt",      "ralt",       "Alt_L",     "Alt_R",
-    "shift", "lshift",    "rshift",     "Shift_L",   "Shift_R",
-    "super", "lsuper",    "rsuper",     "Super_L",   "Super_R",
-    "meta",  "lmeta",     "rmeta",      "Meta_L",    "Meta_R",
-    "ctrl",  "lctrl",     "rctrl",      "Control_L", "Control_R",
-    "hyper", "lhyper",    "rhyper",     "Hyper_L",   "Hyper_R",
-    "mod1",  "mod2",      "mod3",       "mod4",      "mod5",
-    "lock",  "Caps_Lock", "Shift_Lock", "Num_Lock",  "Scroll_Lock", // Unsure if these are needed
+    "alt",   "lalt",      "ralt",       "Alt_L",    "Alt_R",
+    "shift", "lshift",    "rshift",     "Shift_L",  "Shift_R",
+    "super", "lsuper",    "rsuper",     "Super_L",  "Super_R",
+    "meta",  "lmeta",     "rmeta",      "Meta_L",   "Meta_R",
+    "ctrl",  "control",   "lctrl",      "rctrl",    "Control_L",   "Control_R",
+    "hyper", "lhyper",    "rhyper",     "Hyper_L",  "Hyper_R",
+    "mod1",  "mod2",      "mod3",       "mod4",     "mod5",
+    "lock",  "Caps_Lock", "Shift_Lock", "Num_Lock", "Scroll_Lock", // Unsure if these are needed
     "fn",    "meh",
 ];
 
@@ -407,7 +404,7 @@ impl<'a> TokenizedLine<'a> {
             "ralt" => "Alt_R",
             "shift" | "lshift" => "Shift_L",
             "rshift" => "Shift_R",
-            "ctrl" | "lctrl" => "Control_L",
+            "ctrl" | "lctrl" | "control" => "Control_L",
             "rctrl" => "Control_R",
             "mod1" => match_modmask(3, "Alt_L"),
             "mod2" => match_modmask(4, "Num_Lock"),
@@ -584,7 +581,7 @@ impl<'a> TokenizedLine<'a> {
             }
         }
 
-        println!("== CHORDS: :{:#?}", chords);
+        // println!("== CHORDS: :{:#?}", chords);
 
         Some(Chain::new(chords, is_release, modmask))
     }
@@ -1136,7 +1133,6 @@ mod tests {
         let line = Line::new_plus("{a-dd}", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        println!("=== TOKENS == {:#?}", tokenized);
         assert_eq!(tokenized.tokenized, vec![vec![Token::Invalid]]);
         Ok(())
     }

@@ -15,6 +15,8 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use colored::{ColoredString, Colorize};
+use crossbeam_channel::Sender;
+use crossbeam_utils::thread as cthread;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -33,11 +35,12 @@ use thiserror::Error;
 
 use x11rb::{
     connection::{Connection, RequestConnection},
+    cookie::RecordEnableContextCookie,
     errors::ReplyError,
     properties,
     protocol::{
         self,
-        record::{self, ConnectionExt as _},
+        record::{self, ConnectionExt as _, EnableContextReply},
         xkb::{
             self,
             BoolCtrl,
@@ -76,6 +79,7 @@ use x11rb::{
 
 // TODO: These conns may need to be Arc<>
 
+#[derive(Clone)]
 pub(crate) struct Xcape<'a> {
     /// Control connection to the X-Server
     ctrl_conn: &'a RustConnection,
@@ -88,6 +92,9 @@ pub(crate) struct Xcape<'a> {
 }
 
 impl<'a> Xcape<'a> {
+    const RECORD_FROM_SERVER: u8 = 0;
+    const START_OF_DATA: u8 = 4;
+
     /// Construct a new instance of `Xcape`
     pub(crate) fn new(
         ctrl_conn: &'a RustConnection,
@@ -151,7 +158,6 @@ impl<'a> Xcape<'a> {
                 log::warn!("byte swapped clients are unsupported");
             } else if reply.category == RECORD_FROM_SERVER {
                 let mut remaining = &reply.data[..];
-                let mut should_exit = false;
                 while !remaining.is_empty() {
                     remaining = self.intercept(&reply.data, state)?;
                 }
@@ -162,6 +168,51 @@ impl<'a> Xcape<'a> {
             }
         }
 
+        Ok(())
+    }
+
+    // pub(crate) fn setup_record_ctx(&self) ->
+    // Result<RecordEnableContextCookie<'_>> {     self.gen_record_ctx()
+    //         .context("failed to generate record context")?;
+    //
+    //     self.data_conn
+    //         .record_enable_context(self.id)
+    //         .context("failed to get `record_enable_context`")?
+    // }
+
+    pub(crate) fn xcape_poll_for_event(&self, state: &mut XcapeState) -> Result<()> {
+        self.gen_record_ctx()
+            .context("failed to generate record context")?;
+
+        for reply in self
+            .data_conn
+            .record_enable_context(self.id)
+            .context("failed to get `record_enable_context`")?
+        {
+            let reply = reply.context("failed to get `record_enable_context` reply")?;
+
+            if reply.category == Self::RECORD_FROM_SERVER {
+                while let Ok(remaining) = self.intercept(&reply.data, state) {
+                    if remaining.is_empty() {
+                        log::warn!("no more events from `xcape`");
+                        break;
+                    }
+                }
+            }
+
+            // if reply.client_swapped {
+            //     log::warn!("byte swapped clients are unsupported");
+            // } else if reply.category == Self::RECORD_FROM_SERVER {
+            //     let mut remaining = &reply.data[..];
+            //     // while !remaining.is_empty() {
+            //     //     remaining = self.intercept(&reply.data, state)?;
+            //     // }
+            // } else if reply.category == Self::START_OF_DATA {
+            //     log::info!("{} is {}", "xcape".red().bold(),
+            // "STARTING".green().bold()); } else {
+            //     log::warn!("`xcape` reply category is unknown: {:#?}",
+            // reply); }
+        }
         Ok(())
     }
 
@@ -323,7 +374,7 @@ impl<'a> Xcape<'a> {
             .context("failed to check result of creating record context")?;
 
         let spawn_action = |timeout: u64| {
-            rayon::scope(|scope| {
+            cthread::scope(|scope| {
                 scope.spawn(|_| {
                     thread::sleep(Duration::from_secs(timeout));
                     self.ctrl_conn

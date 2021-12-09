@@ -29,6 +29,7 @@ use std::{
     io::{self, Write},
     panic,
     path::PathBuf,
+    thread,
 };
 
 /// Shorter way of testing if the user wants color for the output of `--help`

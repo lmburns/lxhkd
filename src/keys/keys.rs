@@ -246,8 +246,6 @@ impl ModifierMask {
 // Hotkey_Flag_RControl = (1 << 11),
 // Hotkey_Flag_Fn = (1 << 12),
 // Hotkey_Flag_Passthrough = (1 << 13),
-// Hotkey_Flag_Activate = (1 << 14),
-// Hotkey_Flag_NX = (1 << 15),
 // Hotkey_Flag_Hyper = (Hotkey_Flag_Cmd | Hotkey_Flag_Alt | Hotkey_Flag_Shift |
 //                      Hotkey_Flag_Control),
 // Hotkey_Flag_Meh = (Hotkey_Flag_Control | Hotkey_Flag_Shift | Hotkey_Flag_Alt)
@@ -457,9 +455,10 @@ impl fmt::Display for XButton {
 /// `XModmap` output of `xmodmap -pke`, then it will be in here.
 ///
 /// This means that `Control_L`, `Scroll_Lock`, `Caps_Lock`, etc. (virtual
-/// modifiers) will be contained. ~~As well as the real modifiers which contain
-/// `mod1` - `mod5`, `control` (with no suffix), etc~~. The real modifiers are
-/// what is shown when `xmodmap` is used with no arguments.
+/// modifiers) will be contained. The real modifiers are (`mod1`, `mod5`,
+/// `lock`, etc) what is shown when `xmodmap` is used with no arguments, and are
+/// not contained within this struct. Instead, at the parsing stage, they are
+/// parsed and transformed into modifiers that have key names
 ///
 /// There is no way to determine for sure what someone's keyboard layout will
 /// be, so hardcoding `mod4` as `super` isn't the correct thing to do. Instead,
@@ -469,24 +468,24 @@ impl fmt::Display for XButton {
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub(crate) struct CharacterMap {
     /// The UTF-8 representation of the key. E.g., `Hyper_L`
-    pub(crate) utf:     String,
+    utf:     String,
     /// The code of the physical key on the keyboard this key is on
-    pub(crate) code:    Keycode,
+    code:    Keycode,
     /// The modifiers to apply to this key
-    pub(crate) modmask: u16,
+    modmask: u16,
     /// The symbol that represents this key after applying modifiers
-    pub(crate) symbol:  Keysym,
+    symbol:  Keysym,
     /// The level the key is in
     ///  - ONE_LEVEL: does not depend on a any modifiers
     ///  - TWO_LEVEL: depends on `Shift` modifier (`Lock` doesn't affect)
     ///  - THREE_LEVEL: `Shift` + extra modifier (`Lock` doesn't affect)
     ///  - FOUR_LEVEL: `Shift` + extra modifier not found in `THREE_LEVEL`
-    pub(crate) level:   u8,
+    level:   u8,
     /// The virtual modifiers of a key. If it is not a modifier then this field
     /// is 0. This field may not be needed
-    pub(crate) vmod:    u16,
+    vmod:    u16,
     /// The group that this key is in
-    pub(crate) group:   u16,
+    group:   u16,
 }
 
 impl CharacterMap {
@@ -599,16 +598,6 @@ impl CharacterMap {
     pub(crate) fn charmap_from_xkeycode(charmaps: &[Self], keycode: XKeyCode) -> Option<Self> {
         charmaps.iter().find(|c| c.code == keycode.code).cloned()
     }
-
-    // /// Return a vector of `CharacterMap`s from a flattened `TokenizedLine`
-    // pub(crate) fn charmap_hash_from_flatoke<'a>(charmaps: &'a [Self], line:
-    // Vec<&Token>) -> IndexMap<Keycode, Self> {     let mut indexmap =
-    // IndexMap::new();
-    //
-    //     println!("LINE: {:#?}", line);
-    //
-    //     indexmap
-    // }
 }
 
 // ================ Helper Funcs ==================

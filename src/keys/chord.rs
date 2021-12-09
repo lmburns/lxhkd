@@ -58,7 +58,8 @@ impl fmt::Display for Chord {
         write!(
             f,
             "keysym: {}, modmask: {:?}",
-            self.keysym, self.charmap.modmask
+            self.keysym,
+            self.charmap.modmask()
         )
     }
 }
@@ -73,7 +74,7 @@ impl Ord for Chord {
     fn cmp(&self, other: &Chord) -> Ordering {
         self.keysym
             .cmp(&other.keysym)
-            .then(self.charmap.modmask.cmp(&other.charmap.modmask))
+            .then(self.charmap.modmask().cmp(&other.charmap.modmask()))
     }
 }
 
@@ -90,7 +91,7 @@ impl Chord {
 
         Self {
             charmap: charmap.clone(),
-            keysym: XKeysym::from(charmap.symbol),
+            keysym: XKeysym::from(charmap.symbol()),
             button: XButton::new(mask, button),
             modmask: mask,
             event_type,
@@ -104,7 +105,7 @@ impl Chord {
 
     /// Return the [`Modmask`] as a `u16` of the `CharacterMap`
     pub(crate) fn modmask_inner(&self) -> u16 {
-        self.charmap.modmask
+        self.charmap.modmask()
     }
 
     /// Return the the [`ModifierMask`] of the entire `Chord`
@@ -127,8 +128,22 @@ impl Chord {
         self.event_type
     }
 
-    // /// Make a new `Chord`
-    // pub(crate) fn make() -> Self {}
+    /// Return whether the `Chord` contains and uppercase character
+    pub(crate) fn contains_uppercase(&self) -> bool {
+        (self.charmap.symbol() >= 0x41 && self.charmap.symbol() <= 0x5A)
+            || (self.charmap.symbol() >= 0xC0 && self.charmap.symbol() <= 0xD6)
+            || (self.charmap.symbol() >= 0xD8 && self.charmap.symbol() <= 0xDE)
+    }
+
+    /// Change the `XKeysym` value
+    pub(crate) fn update_keysym(&mut self, new: XKeysym) {
+        self.keysym = new;
+    }
+
+    /// Change the `ModifierMask` value
+    pub(crate) fn update_modmask(&mut self, new: ModifierMask) {
+        self.modmask = new;
+    }
 }
 
 // =================== Chain ======================
@@ -163,6 +178,21 @@ impl Chain {
     /// Return the the total `ModifierMask` as a `u16`
     pub(crate) fn modmask(&self) -> u16 {
         u16::from(self.modmask)
+    }
+
+    /// Determine whether the `Chain` has a `Chord` with an uppercase character
+    pub(crate) fn contains_uppercase(&self) -> bool {
+        self.chords.iter().any(Chord::contains_uppercase)
+    }
+
+    /// Return the uppercase `Chord`
+    pub(crate) fn find_uppercase(&self) -> Option<(usize, Chord)> {
+        let pos = self
+            .chords
+            .iter()
+            .map(Clone::clone)
+            .position(|c| c.contains_uppercase())?;
+        Some((pos, self.chords.get(pos)?.clone()))
     }
 
     /// Clear all active `Chord`s

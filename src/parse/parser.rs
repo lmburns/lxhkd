@@ -37,7 +37,7 @@ use std::{
     str::FromStr,
 };
 use thiserror::Error;
-use x11rb::protocol::xproto;
+use x11rb::protocol::{xproto, xproto::MapIndex};
 
 pub(crate) const EXTRA_PREFIX: char = '=';
 
@@ -393,8 +393,8 @@ impl<'a> TokenizedLine<'a> {
         let match_modmask = |mask: u16, or: &'a str| -> &'a str {
             charmaps
                 .iter()
-                .find(|m| m.modmask == (1 << mask))
-                .map_or(or, |a| &a.utf)
+                .find(|m| m.modmask() == (1 << mask))
+                .map_or(or, CharacterMap::utf)
         };
 
         match tomatch.trim() {
@@ -422,23 +422,6 @@ impl<'a> TokenizedLine<'a> {
         }
     }
 
-    // pub(crate) fn convert_range_to_chain(&'a mut self, charmaps: &'a
-    // [CharacterMap]) -> Vec<Option<Chain>> { }
-
-    // /// Convert a `TokenizedLine` to an `Xcape`
-    // pub(crate) fn convert_to_xcape(&'a mut self, charmaps: &'a [CharacterMap]) ->
-    // Option<Xcape> {     let line = self.finalize_split();
-    //     let mut chords = vec![];
-    //     let mut is_release = false;
-    //     let mut modmask = ModifierMask::new(0);
-    //
-    //     // TODO: Confirm mouse bindings here
-    //     // TODO: If line contains both `char` and `mouse` return None
-    //     if line.contains(&&Token::Invalid) {
-    //         return None;
-    //     }
-    // }
-
     /// Convert a `TokenizedLine` to a `Chain`
     pub(crate) fn convert_to_chain(
         &'a mut self,
@@ -461,7 +444,8 @@ impl<'a> TokenizedLine<'a> {
         }
 
         // for idx in 0..line.len() {
-        // let bind = line[idx];
+        //     let bind = line[idx];
+
         for bind in line {
             match bind {
                 Token::Modifier(modifier) => {
@@ -474,7 +458,7 @@ impl<'a> TokenizedLine<'a> {
                         );
 
                         // Skip pushing modifier keys, since the events only register masks
-                        modmask.combine_u16(charmap.modmask);
+                        modmask.combine_u16(charmap.modmask());
                         if is_xcape {
                             chords.push(Chord::new(
                                 &charmap,
@@ -490,7 +474,7 @@ impl<'a> TokenizedLine<'a> {
                     }
                 },
                 Token::Char(ch) => {
-                    if let Some(charmap) =
+                    if let Some(mut charmap) =
                         CharacterMap::charmap_from_keysym_utf(charmaps, &ch.to_string())
                     {
                         log::debug!(
@@ -498,6 +482,40 @@ impl<'a> TokenizedLine<'a> {
                             ch.to_string().yellow().bold(),
                             charmap
                         );
+
+                        // TODO: Confirm: Convert uppercase characters to shift + lowercase
+                        // If the character is a captital letter, then change the character
+                        // to a lowercase character, so we can grab it.
+                        //
+                        // For whatever reason, it registers a correct key event and grabbed it, but
+                        // since the shift character has to be held to create a capital letter, the
+                        // keysyms are different and it isn't picking it up?
+                        if (charmap.symbol() >= 0x41 && charmap.symbol() <= 0x5A)
+                            || (charmap.symbol() >= 0xC0 && charmap.symbol() <= 0xD6)
+                            || (charmap.symbol() >= 0xD8 && charmap.symbol() <= 0xDE)
+                        {
+                            modmask.combine_u16(1 << u16::from(MapIndex::SHIFT));
+                            if let Some(lower) = CharacterMap::charmap_from_keysym_utf(
+                                charmaps,
+                                &ch.to_string().to_lowercase(),
+                            ) {
+                                log::debug!(
+                                    "converting uppercase {} to lowercase",
+                                    charmap.utf().green().bold()
+                                );
+                                charmap = lower;
+                            } else {
+                                log::warn!(
+                                    "failed to convert uppercase {} to lowercase",
+                                    charmap.utf().green().bold()
+                                );
+                                log::warn!(
+                                    "instead of using <modifier + CAP>; use <modifier + shift + \
+                                     lower>"
+                                );
+                            }
+                        }
+
                         chords.push(Chord::new(
                             &charmap,
                             modmask.mask(),
@@ -565,6 +583,8 @@ impl<'a> TokenizedLine<'a> {
                 _ => {},
             }
         }
+
+        println!("== CHORDS: :{:#?}", chords);
 
         Some(Chain::new(chords, is_release, modmask))
     }

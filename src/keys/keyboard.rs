@@ -118,6 +118,7 @@ pub(crate) enum Error {
 // ================= Keyboard =====================
 
 /// State of the keyboard
+#[derive(Clone)]
 pub(crate) struct Keyboard<'a> {
     /// Connection to the X-Server
     conn:                &'a RustConnection,
@@ -576,7 +577,11 @@ impl<'a> Keyboard<'a> {
 
     /// Return the `ModifierMask` of a key based on its' `Keycode`. This should
     /// return the same result as the `CharacterMap` database
-    pub(crate) fn modfield_from_keycode(&self, keycode: Keycode) -> Result<ModifierMask> {
+    ///
+    /// This is an alternate way to do
+    /// [`get_modmask_from_keycode`](super::keys::get_modmask_from_keycode)
+    /// This method does not require that there be a built `CharacterMap` vector
+    pub(crate) fn modmask_from_keycode(&self, keycode: Keycode) -> Result<ModifierMask> {
         let mut modmask = ModifierMask::new(0);
         let r = self
             .conn
@@ -682,21 +687,21 @@ impl<'a> Keyboard<'a> {
             for mask in ModifierMask::return_ignored(chord.modmask()) {
                 log::debug!(
                     "grabbing utf:{}-code:{}-mask:{}",
-                    chord.charmap().utf,
-                    chord.charmap().code,
+                    chord.charmap().utf(),
+                    chord.charmap().code(),
                     mask.mask()
                 );
                 if let Err(e) = self.conn.grab_key(
                     false,
                     self.root,
                     mask.mask(),
-                    chord.charmap().code,
+                    chord.charmap().code(),
                     xproto::GrabMode::ASYNC,
                     xproto::GrabMode::ASYNC,
                 ) {
                     lxhkd_fatal!(
                         "failed to grab key {:?} with a mask {}: {}",
-                        chord.charmap().code,
+                        chord.charmap().code(),
                         chord.modmask(),
                         e
                     );
@@ -709,9 +714,9 @@ impl<'a> Keyboard<'a> {
     pub(crate) fn ungrab_key(&self, chords: &[Chord]) {
         for chord in chords {
             if let Err(e) = self.conn.ungrab_key(
-                chord.charmap().code, // key
-                self.root,            // window
-                chord.modmask(),      // modifier
+                chord.charmap().code(), // key
+                self.root,              // window
+                chord.modmask(),        // modifier
             ) {
                 lxhkd_fatal!("failed to ungrab key: {}", e);
             }
@@ -810,21 +815,21 @@ impl<'a> Keyboard<'a> {
 
         for charmap in &self.charmap {
             table.push(vec![
-                charmap.utf.purple().bold().cell().justify(Justify::Left),
+                charmap.utf().purple().bold().cell().justify(Justify::Left),
                 charmap
-                    .code
+                    .code()
                     .to_string()
                     .green()
                     .cell()
                     .justify(Justify::Left),
                 charmap
-                    .symbol
+                    .symbol()
                     .to_string()
                     .yellow()
                     .cell()
                     .justify(Justify::Left),
                 charmap
-                    .modmask
+                    .modmask()
                     .to_string()
                     .red()
                     .bold()
@@ -858,8 +863,8 @@ impl<'a> Keyboard<'a> {
     pub(crate) fn get_active_mods(&self) {
         self.charmap
             .iter()
-            .filter(|c| c.vmod != 0)
-            .for_each(|c| println!("{}: mask: {}", c.utf.green().bold(), c.modmask));
+            .filter(|c| c.vmod() != 0)
+            .for_each(|c| println!("{}: mask: {}", c.utf().green().bold(), c.modmask()));
     }
 
     /// === Debugging Function ===
@@ -878,17 +883,17 @@ impl<'a> Keyboard<'a> {
         let num_char = CharacterMap::charmap_from_keysym_utf(&self.charmap, "Num_Lock")
             .context("couldn't find `Num_Lock` in `CharacterMap`")?;
         let num_mask = num_char.modmask();
-        let num_from_code = self.modfield_from_keycode(num_char.code())?;
+        let num_from_code = self.modmask_from_keycode(num_char.code())?;
 
         let scroll_char = CharacterMap::charmap_from_keysym_utf(&self.charmap, "Scroll_Lock")
             .context("couldn't find `Scroll_Lock` in `CharacterMap`")?;
         let scroll_mask = scroll_char.modmask();
-        let scroll_from_code = self.modfield_from_keycode(scroll_char.code())?;
+        let scroll_from_code = self.modmask_from_keycode(scroll_char.code())?;
 
         let caps_char = CharacterMap::charmap_from_keysym_utf(&self.charmap, "Caps_Lock")
             .context("couldn't find `Caps_Lock` in `CharacterMap`")?;
         let caps_mask = caps_char.modmask();
-        let caps_from_code = self.modfield_from_keycode(caps_char.code())?;
+        let caps_from_code = self.modmask_from_keycode(caps_char.code())?;
 
         let bold = |s: &str| -> ColoredString { s.green().bold() };
         println!(

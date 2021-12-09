@@ -26,7 +26,7 @@ impl XKeysym {
 
 impl From<CharacterMap> for XKeysym {
     fn from(charmap: CharacterMap) -> XKeysym {
-        XKeysym(charmap.symbol)
+        XKeysym(charmap.symbol())
     }
 }
 

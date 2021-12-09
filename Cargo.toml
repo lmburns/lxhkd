@@ -47,7 +47,10 @@ nix = "0.23.0"
 
 psutil = { version = "3.2.1", default-features = false, features = ["process"] }
 chrono = "0.4.19"
-rayon = "1.5.1"
+
+# rayon = "1.5.1"
+crossbeam-channel = "0.5.1"
+crossbeam-utils = "0.8.5"
 
 [dev-dependencies]
 # pretty_assertions = "0.7.1"

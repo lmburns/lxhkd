@@ -6,16 +6,18 @@ use super::{
     chord::{Chain, ChainLink, Chord},
     event_handler::Handler,
     keyboard::Keyboard,
-    keys::CharacterMap,
+    keys::{CharacterMap, ModifierMask},
     xcape_state::{XcapeKeyState, XcapeState},
 };
 use crate::{
     config::{Action, Config},
+    keys::keysym::XKeysym,
     lxhkd_fatal,
     parse::parser::{Line, TokenizedLine},
 };
 use anyhow::{Context, Result};
 use colored::Colorize;
+use crossbeam_channel as channel;
 use indexmap::IndexMap;
 use std::{collections::BTreeMap, fmt};
 use x11rb::{
@@ -61,7 +63,7 @@ impl<'a> Daemon<'a> {
         }
     }
 
-    // TODO: If binding contains an unknown, the skip it
+    // TODO: If binding contains an unknown, then confirm it is skipped
 
     /// Parse the configuration bindings
     pub(crate) fn process_bindings(&mut self) -> Result<()> {
@@ -75,7 +77,8 @@ impl<'a> Daemon<'a> {
                 let mut tokenized = line.tokenize();
                 tokenized.parse_tokens()?;
 
-                if let Some(chain) = tokenized.convert_to_chain(self.keyboard.charmap(), false) {
+                if let Some(mut chain) = tokenized.convert_to_chain(self.keyboard.charmap(), false)
+                {
                     let action = bindings
                         .get_index(idx - 1)
                         .context(
@@ -83,11 +86,15 @@ impl<'a> Daemon<'a> {
                              section",
                         )?
                         .1;
+
                     let cmd = Action::Shell(action.to_string());
                     parsed_bindings.insert(chain, cmd);
                 }
             }
         }
+
+        // println!("BINDINGS = {:#?}", parsed_bindings);
+        // std::process::exit(1);
 
         self.bindings = parsed_bindings;
 
@@ -169,8 +176,8 @@ impl<'a> Daemon<'a> {
                                 .iter()
                                 .map(|ch| format!(
                                     "({}-{})",
-                                    ch.charmap().utf.clone(),
-                                    ch.charmap().code,
+                                    ch.charmap().utf(),
+                                    ch.charmap().code(),
                                 ))
                                 .collect::<Vec<_>>()
                                 .join(", ")
@@ -199,6 +206,7 @@ impl<'a> Daemon<'a> {
     pub(crate) fn daemonize(&mut self) -> Result<()> {
         // println!("BINDINGS: {:#?}", self.bindings);
         // std::process::exit(1);
+
         for chain in self.bindings.keys() {
             self.keyboard.grab_key(chain.chords());
         }

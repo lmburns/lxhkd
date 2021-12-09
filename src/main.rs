@@ -202,14 +202,14 @@ fn main() -> Result<()> {
     // Xcape data read connection
     let (data_conn, _) = XUtility::setup_connection()?;
 
-    let keyboard = Keyboard::new(&conn, &ctrl_conn, &data_conn, screen_num, &config)?;
+    let keyboard = Keyboard::new(conn, ctrl_conn, data_conn, screen_num, &config)?;
 
     if args.keysyms {
         keyboard.list_keysyms()?;
         std::process::exit(1);
     }
 
-    let mut daemon = Daemon::new(&keyboard, &config);
+    let mut daemon = Daemon::new(keyboard, config);
     daemon.process_bindings()?;
     daemon.process_xcape()?;
     daemon.daemonize()?;

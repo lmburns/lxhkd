@@ -119,11 +119,11 @@ pub(crate) enum Error {
 
 /// State of the keyboard
 #[derive(Clone)]
-pub(crate) struct Keyboard<'a> {
+pub(crate) struct Keyboard {
     /// Connection to the X-Server
-    conn:                &'a RustConnection,
+    conn:                Arc<RustConnection>,
     /// Connection to the X-Server to read and control data for `xcape`
-    xcape:               Xcape<'a>,
+    xcape:               Xcape,
     /// Root window.
     root:                xproto::Window,
     /// The characters, keysyms, etc making up the `Keyboard`
@@ -144,32 +144,31 @@ pub(crate) struct Keyboard<'a> {
     autorepeat_interval: u16,
 }
 
-impl<'a> Keyboard<'a> {
+impl Keyboard {
     /// Construct a new instance of `Keyboard`
     pub(crate) fn new(
-        conn: &'a RustConnection,
-        ctrl_conn: &'a RustConnection,
-        data_conn: &'a RustConnection,
+        conn: RustConnection,
+        ctrl_conn: RustConnection,
+        data_conn: RustConnection,
         screen_num: usize,
         config: &Config,
     ) -> Result<Self> {
         let screen = conn.setup();
         let root = screen.roots[screen_num].clone().root;
 
-        let use_extension =
-            |conn: &'a RustConnection, extension_name: &'static str| -> Result<()> {
-                if conn.extension_information(extension_name)?.is_none() {
-                    lxhkd_fatal!(
-                        "{} X11 extension is unsupported",
-                        extension_name.green().bold()
-                    );
-                }
+        let use_extension = |conn: &RustConnection, extension_name: &'static str| -> Result<()> {
+            if conn.extension_information(extension_name)?.is_none() {
+                lxhkd_fatal!(
+                    "{} X11 extension is unsupported",
+                    extension_name.green().bold()
+                );
+            }
 
-                Ok(())
-            };
+            Ok(())
+        };
 
         // Check `xkb` extension
-        use_extension(conn, xkb::X11_EXTENSION_NAME)?;
+        use_extension(&conn, xkb::X11_EXTENSION_NAME)?;
         let (min, max) = xkb::X11_XML_VERSION;
         if let Err(e) = conn.xkb_use_extension(min as u16, max as u16) {
             lxhkd_fatal!(
@@ -181,11 +180,11 @@ impl<'a> Keyboard<'a> {
         };
 
         // Check `xtest` extension
-        use_extension(conn, xtest::X11_EXTENSION_NAME)?;
+        use_extension(&conn, xtest::X11_EXTENSION_NAME)?;
         // conn.query_extension()
 
         // Check `record` extension
-        use_extension(conn, record::X11_EXTENSION_NAME)?;
+        use_extension(&conn, record::X11_EXTENSION_NAME)?;
         let (min, max) = record::X11_XML_VERSION;
         if let Err(e) = conn.record_query_version(min as u16, max as u16) {
             lxhkd_fatal!(
@@ -201,13 +200,13 @@ impl<'a> Keyboard<'a> {
         // let k = conn.change_keyboard_mapping();
 
         let mut keyboard = Self {
-            conn,
+            min_keycode: screen.min_keycode,
+            max_keycode: screen.max_keycode,
+            conn: Arc::new(conn),
             xcape: Xcape::new(ctrl_conn, data_conn, config)?,
             root,
             charmap: Vec::new(),
             device_id: 0,
-            min_keycode: screen.min_keycode,
-            max_keycode: screen.max_keycode,
             modmap: Vec::new(),
             keysyms_per_keycode: 0,
             autorepeat_interval: 0,
@@ -612,7 +611,7 @@ impl<'a> Keyboard<'a> {
 
     /// Return the connection to the X-Server
     pub(crate) fn connection(&self) -> &RustConnection {
-        self.conn
+        &self.conn
     }
 
     /// Return the root window
@@ -1072,7 +1071,7 @@ impl<'a> Keyboard<'a> {
     // }
 }
 
-impl<'a> fmt::Debug for Keyboard<'a> {
+impl fmt::Debug for Keyboard {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

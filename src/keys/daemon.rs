@@ -19,7 +19,11 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use crossbeam_channel as channel;
 use indexmap::IndexMap;
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    sync::{Arc, Mutex},
+};
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -32,11 +36,11 @@ use x11rb::{
 
 /// Global daemon state object.
 #[derive(Debug)]
-pub(crate) struct Daemon<'a> {
+pub(crate) struct Daemon {
     /// The current keyboard setup
-    keyboard:      &'a Keyboard<'a>,
+    keyboard:      Arc<Keyboard>,
     /// Configuration file of the user
-    config:        &'a Config,
+    config:        Config,
     /// The parsed bindings registered in all modes
     bindings:      BTreeMap<Chain, Action>,
     /// The parsed `Xcape` keys
@@ -49,12 +53,12 @@ pub(crate) struct Daemon<'a> {
 // /// Max allowed time between keypresses
 // keypress_timeout: u32,
 
-impl<'a> Daemon<'a> {
+impl Daemon {
     /// Create a new `Daemon`
-    pub(crate) fn new(keyboard: &'a Keyboard<'a>, config: &'a Config) -> Self {
+    pub(crate) fn new(keyboard: Keyboard, config: Config) -> Self {
         // keypress_timeout: config.global.timeout.unwrap_or(300),
         Self {
-            keyboard,
+            keyboard: Arc::new(keyboard),
             config,
             bindings: BTreeMap::new(),
             xcape: XcapeState::default(),
@@ -223,14 +227,14 @@ impl<'a> Daemon<'a> {
                 match event {
                     Event::KeyPress(ev) => {
                         log::trace!("handling key press: {:#?}", event);
-                        if let Some(chord) = Handler::handle_key_press(&ev, self.keyboard) {
+                        if let Some(chord) = Handler::handle_key_press(&ev, &self.keyboard) {
                             self.process_chords(chord, ev.time, ev.response_type);
                         }
                         self.keyboard.allow_events(xproto::KEY_PRESS_EVENT, false)?;
                     },
                     Event::KeyRelease(ev) => {
                         log::trace!("handling key release: {:#?}", event);
-                        if let Some(chord) = Handler::handle_key_release(&ev, self.keyboard) {
+                        if let Some(chord) = Handler::handle_key_release(&ev, &self.keyboard) {
                             self.process_chords(chord, ev.time, ev.response_type);
                         }
                         self.keyboard

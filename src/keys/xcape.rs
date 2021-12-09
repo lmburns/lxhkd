@@ -180,24 +180,29 @@ impl Xcape {
     //         .context("failed to get `record_enable_context`")?
     // }
 
-    pub(crate) fn xcape_poll_for_event(&self, state: &mut XcapeState) -> Result<()> {
+    pub(crate) fn poll_for_event(&self, tx_xcape: &Sender<Vec<u8>>) {
         self.gen_record_ctx()
-            .context("failed to generate record context")?;
+            .expect("failed to generate record context");
 
         for reply in self
             .data_conn
             .record_enable_context(self.id)
-            .context("failed to get `record_enable_context`")?
+            .expect("failed to get `record_enable_context`")
         {
-            let reply = reply.context("failed to get `record_enable_context` reply")?;
+            let reply = reply.expect("failed to get `record_enable_context` reply");
 
             if reply.category == Self::RECORD_FROM_SERVER {
-                while let Ok(remaining) = self.intercept(&reply.data, state) {
-                    if remaining.is_empty() {
-                        log::warn!("no more events from `xcape`");
-                        break;
-                    }
+                println!("== SENDING XCAPE ==");
+                if let Err(e) = tx_xcape.send(reply.data) {
+                    log::error!("failed to send data to `tx_xcape`");
                 }
+
+                // while let Ok(remaining) = self.intercept(&reply.data, state)
+                // {     if remaining.is_empty() {
+                //         log::warn!("no more events from `xcape`");
+                //         break;
+                //     }
+                // }
             }
 
             // if reply.client_swapped {
@@ -213,7 +218,6 @@ impl Xcape {
             //     log::warn!("`xcape` reply category is unknown: {:#?}",
             // reply); }
         }
-        Ok(())
     }
 
     // This intercept function's name was taken directly from `xcape` itself.

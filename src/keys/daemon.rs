@@ -221,36 +221,110 @@ impl Daemon {
         //     self.keyboard.xcape().run(&mut self.xcape)?;
         // }
 
-        let (tx_event, rx_event) = channel::unbounded();
+        let ticker_rx = crossbeam_channel::tick(std::time::Duration::from_secs(10));
+        // let mut xcape = Arc::new(Mutex::new(self.xcape));
+        let mut daemon = Arc::new(Mutex::new(self));
 
-        std::thread::spawn(move || {
-            let event = self.keyboard.connection().wait_for_event();
-            println!("=== found event");
-            if let Err(e) = tx_event.send(event) {
-                println!("error sending event");
-            }
-        });
-        // thread::scope(move |scope| {
-        //     let keyboard = keyboard.clone();
-        //     scope.spawn(move |_| {
-        //         let keyboard = keyboard;
-        //         println!("===within scope");
-        //         let event = self.keyboard.wait_for_event();
-        //         println!("=== found event");
-        //         if let Err(e) = tx_event.send(event) {
-        //             println!("error sending event");
-        //             return;
-        //         }
-        //     });
-        // });
+        thread::scope(|scope| {
+            let (tx_event, rx_event) = channel::unbounded();
+            let (tx_xcape, rx_xcape) = channel::unbounded();
 
-        loop {
-            crossbeam_channel::select! {
-                recv(rx_event) -> event => {
-                    println!("EVENT: {:#?}", event);
+            scope.spawn(|_| {
+                let tx_xcape = tx_xcape;
+                let mut daemon = daemon.lock().unwrap();
+                if !daemon.xcape.is_empty() {
+                    loop {
+                        daemon.keyboard.xcape().poll_for_event(&tx_xcape);
+                    }
                 }
-            }
-        }
+            });
+
+            scope.spawn(|_| {
+                let rx_xcape = rx_xcape;
+                let mut daemon = daemon.lock().unwrap();
+                if !daemon.xcape.is_empty() {
+                    while let Ok(data) = rx_xcape.recv() {
+                        daemon
+                            .keyboard
+                            .xcape()
+                            .clone()
+                            .intercept(&data, &mut daemon.xcape)
+                            .expect("failed to intercept data on receiving channel of `xcape`");
+                    }
+                }
+            });
+
+            // scope.spawn(|_| {
+            //     let mut daemon = daemon.lock().unwrap();
+            //     if !daemon.xcape.is_empty() {
+            //         daemon
+            //             .keyboard
+            //             .xcape()
+            //             .clone()
+            //             .run(&mut daemon.xcape)
+            //             .expect("failed to run `xcape`");
+            //     }
+            // });
+
+            scope.spawn(|_| {
+                let tx_event = tx_event;
+                let keyboard = daemon.lock().unwrap().keyboard.clone();
+                keyboard.flush();
+                loop {
+                    if let Ok(event) = keyboard.wait_for_event() {
+                        if let Err(e) = tx_event.send(event) {
+                            log::error!("error sending event to `x11-main`");
+                        }
+                    }
+                }
+            });
+
+            scope.spawn(|_| {
+                let rx_event = rx_event;
+                let mut daemon = daemon.lock().unwrap();
+
+                while let Ok(event) = rx_event.recv() {
+                    match event {
+                        Event::KeyPress(ev) => {
+                            log::trace!("handling key press: {:#?}", event);
+                            if let Some(chord) = Handler::handle_key_press(&ev, &daemon.keyboard) {
+                                daemon.process_chords(chord, ev.time, ev.response_type);
+                            }
+                            daemon
+                                .keyboard
+                                .allow_events(xproto::KEY_PRESS_EVENT, false)
+                                .expect("failed to allow events");
+                        },
+                        Event::KeyRelease(ev) => {
+                            println!("== KEY RELEASE ==");
+                        },
+                        _ => {},
+                    }
+                }
+            });
+
+            // scope.spawn(|_| {
+            //     let ticker_rx = ticker_rx;
+            //     // let keyboard = keyboard.clone();
+            //     ticker_rx.iter().for_each(|_| {
+            //         keyboard.flush();
+            //     });
+            // });
+        })
+        .unwrap();
+
+        // loop {
+        //     crossbeam_channel::select! {
+        //         recv(rx_event) -> event => {
+        //             println!("EVENT: {:#?}", event);
+        //             keyboard.flush();
+        //         },
+        //
+        //         recv(ticker_rx) -> _ =>  {
+        //             keyboard.flush();
+        //         }
+        //     }
+        // }
 
         // loop {
         //     self.keyboard.flush();

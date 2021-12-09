@@ -12,6 +12,7 @@ use crate::{
     config::Config,
     lxhkd_fatal,
     types::{Xid, KEYSYMS_PER_KEYCODE},
+    xutils::XUtility,
 };
 use anyhow::{anyhow, Context, Result};
 use colored::{ColoredString, Colorize};
@@ -90,8 +91,28 @@ pub(crate) struct Xcape {
 }
 
 impl Xcape {
-    const RECORD_FROM_SERVER: u8 = 0;
-    const START_OF_DATA: u8 = 4;
+    pub(crate) const RECORD_FROM_SERVER: u8 = 0;
+    pub(crate) const START_OF_DATA: u8 = 4;
+
+    /// Return the control connection to the X-Server
+    pub(crate) fn ctrl_conn(&self) -> &RustConnection {
+        &self.ctrl_conn
+    }
+
+    /// Return the data-reading connection to the X-Server
+    pub(crate) fn data_conn(&self) -> &RustConnection {
+        &self.data_conn
+    }
+
+    /// Return the id used for `record_enable_context`
+    pub(crate) fn id(&self) -> u32 {
+        self.id
+    }
+
+    /// Return the `timeout` used for `record_enable_context`
+    pub(crate) fn timeout(&self) -> Option<u64> {
+        self.timeout
+    }
 
     /// Construct a new instance of `Xcape`
     pub(crate) fn new(
@@ -109,31 +130,6 @@ impl Xcape {
             id,
             timeout: config.global.xcape_timeout,
         })
-    }
-
-    /// Generate the [`record`] configuration
-    /// ([`Range`](x11rb::protocol::record::Range))
-    pub(crate) fn gen_record_range() -> record::Range {
-        let empty = record::Range8 { first: 0, last: 0 };
-        let empty_ext =
-            record::ExtRange { major: empty, minor: record::Range16 { first: 0, last: 0 } };
-
-        record::Range {
-            core_requests:    empty,
-            core_replies:     empty,
-            ext_requests:     empty_ext,
-            ext_replies:      empty_ext,
-            delivered_events: empty,
-            device_events:    record::Range8 {
-                // Want notification of core X11 events from key press (2) to motion notify (6)
-                // KeyPress = 2, KeyRelease = 3, ButtonPress = 4, ButtonRelease = 5
-                first: xproto::KEY_PRESS_EVENT,
-                last:  xproto::MOTION_NOTIFY_EVENT,
-            },
-            errors:           empty, // core and ext errors
-            client_started:   false, // connection setup reply from server
-            client_died:      false, // notification of client disconnect
-        }
     }
 
     /// Run the `Xcape` bindings
@@ -211,6 +207,44 @@ impl Xcape {
             //     log::warn!("`xcape` reply category is unknown: {:#?}",
             // reply); }
         }
+        Ok(())
+    }
+
+    /// Generate the [`record`](x11rb::protocol::record) context
+    pub(crate) fn gen_record_ctx(&self) -> Result<()> {
+        let range = XUtility::gen_record_range();
+
+        self.ctrl_conn
+            .record_create_context(self.id, 0, &[record::CS::ALL_CLIENTS.into()], &[range])
+            .context("failed to create record context")?
+            .check()
+            .context("failed to check result of creating record context")?;
+
+        let spawn_action = |timeout: u64| {
+            cthread::scope(|scope| {
+                scope.spawn(|_| {
+                    thread::sleep(Duration::from_secs(timeout));
+                    self.ctrl_conn
+                        .record_disable_context(self.id)
+                        .expect("failed to disable record context");
+                    self.ctrl_conn.sync().expect("failed to sync X-Server");
+                });
+            });
+        };
+
+        // Apply a timeout, if the user requested
+        // Environment variable overrides configuration
+        match env::var("LXHKD_XCAPE_TIMEOUT")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+        {
+            None => match self.timeout {
+                None => {},
+                Some(timeout) => spawn_action(timeout),
+            },
+            Some(timeout) => spawn_action(timeout),
+        }
+
         Ok(())
     }
 
@@ -362,44 +396,6 @@ impl Xcape {
                 Ok(&data[32..])
             },
         }
-    }
-
-    /// Generate the [`record`](x11rb::protocol::record) context
-    pub(crate) fn gen_record_ctx(&self) -> Result<()> {
-        let range = Self::gen_record_range();
-
-        self.ctrl_conn
-            .record_create_context(self.id, 0, &[record::CS::ALL_CLIENTS.into()], &[range])
-            .context("failed to create record context")?
-            .check()
-            .context("failed to check result of creating record context")?;
-
-        let spawn_action = |timeout: u64| {
-            cthread::scope(|scope| {
-                scope.spawn(|_| {
-                    thread::sleep(Duration::from_secs(timeout));
-                    self.ctrl_conn
-                        .record_disable_context(self.id)
-                        .expect("failed to disable record context");
-                    self.ctrl_conn.sync().expect("failed to sync X-Server");
-                });
-            });
-        };
-
-        // Apply a timeout, if the user requested
-        // Environment variable overrides configuration
-        match env::var("LXHKD_XCAPE_TIMEOUT")
-            .ok()
-            .and_then(|v| v.parse::<u64>().ok())
-        {
-            None => match self.timeout {
-                None => {},
-                Some(timeout) => spawn_action(timeout),
-            },
-            Some(timeout) => spawn_action(timeout),
-        }
-
-        Ok(())
     }
 
     // ================ GenericEvent ==================

@@ -228,68 +228,72 @@ impl Daemon {
         //     self.keyboard.xcape().run(&mut self.xcape)?;
         // }
 
-        loop {
-            self.keyboard.flush();
+        // loop {
+        self.keyboard.run(&mut self.xcape)?;
+        // }
 
-            // let event = self.keyboard.wait_for_event()?;
-            while let Some(event) = self.keyboard.poll_for_event() {
-                match event {
-                    Event::KeyPress(ev) => {
-                        log::trace!("handling key press: {:#?}", event);
-                        if let Some(chord) = Handler::handle_key_press(&ev, &self.keyboard) {
-                            self.process_chords(chord, ev.time, ev.response_type);
-                        }
-                        self.keyboard.allow_events(xproto::KEY_PRESS_EVENT, false)?;
-                    },
-                    Event::KeyRelease(ev) => {
-                        log::trace!("handling key release: {:#?}", event);
-                        if let Some(chord) = Handler::handle_key_release(&ev, &self.keyboard) {
-                            self.process_chords(chord, ev.time, ev.response_type);
-                        }
-                        self.keyboard
-                            .allow_events(xproto::KEY_RELEASE_EVENT, false)?;
-                    },
-                    Event::ButtonPress(_ev) => {
-                        log::trace!("handling button press: {:#?}", event);
-                    },
-                    Event::ButtonRelease(_ev) => {
-                        log::trace!("handling button release: {:#?}", event);
-                    },
-                    // ====
-                    // TODO: Match first event for these
-                    // ====
-                    Event::XkbNewKeyboardNotify(ev) => {
-                        log::info!(
-                            "`XkbNewKeyboardNotify` event; old_device:{} => new_device:{}",
-                            ev.old_device_id,
-                            ev.device_id
-                        );
-                        todo!(); // update_keymap
-                    },
-                    Event::XkbMapNotify(ev) => {
-                        log::info!("`XkbMapNotify` event; changed:{}", ev.changed);
-                        todo!(); // update_keymap
-                    },
-                    Event::XkbStateNotify(ev) => {
-                        log::info!(
-                            "`XkbStateNotify` event; mods:{}, changed:{}",
-                            ev.mods,
-                            ev.changed
-                        );
-                        todo!(); // update_state
-                    },
-                    //
-                    Event::Error(e) => {
-                        // TODO: Does this need to exit?
-                        self.keyboard.cleanup();
-                        lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
-                    },
-                    _ => {
-                        log::trace!("{}:ignoring event: {:#?}", "bind".red().bold(), event);
-                    },
-                }
-            }
-        }
+        // loop {
+        //     self.keyboard.flush();
+        //
+        //     // let event = self.keyboard.wait_for_event()?;
+        //     while let Some(event) = self.keyboard.poll_for_event() {
+        //         match event {
+        //             Event::KeyPress(ev) => {
+        //                 log::trace!("handling key press: {:#?}", event);
+        //                 if let Some(chord) = Handler::handle_key_press(&ev,
+        // &self.keyboard) {                     self.process_chords(chord,
+        // ev.time, ev.response_type);                 }
+        //                 self.keyboard.allow_events(xproto::KEY_PRESS_EVENT, false)?;
+        //             },
+        //             Event::KeyRelease(ev) => {
+        //                 log::trace!("handling key release: {:#?}", event);
+        //                 if let Some(chord) = Handler::handle_key_release(&ev,
+        // &self.keyboard) {                     self.process_chords(chord,
+        // ev.time, ev.response_type);                 }
+        //                 self.keyboard
+        //                     .allow_events(xproto::KEY_RELEASE_EVENT, false)?;
+        //             },
+        //             Event::ButtonPress(_ev) => {
+        //                 log::trace!("handling button press: {:#?}", event);
+        //             },
+        //             Event::ButtonRelease(_ev) => {
+        //                 log::trace!("handling button release: {:#?}", event);
+        //             },
+        //             // ====
+        //             // TODO: Match first event for these
+        //             // ====
+        //             Event::XkbNewKeyboardNotify(ev) => {
+        //                 log::info!(
+        //                     "`XkbNewKeyboardNotify` event; old_device:{} =>
+        // new_device:{}",                     ev.old_device_id,
+        //                     ev.device_id
+        //                 );
+        //                 todo!(); // update_keymap
+        //             },
+        //             Event::XkbMapNotify(ev) => {
+        //                 log::info!("`XkbMapNotify` event; changed:{}", ev.changed);
+        //                 todo!(); // update_keymap
+        //             },
+        //             Event::XkbStateNotify(ev) => {
+        //                 log::info!(
+        //                     "`XkbStateNotify` event; mods:{}, changed:{}",
+        //                     ev.mods,
+        //                     ev.changed
+        //                 );
+        //                 todo!(); // update_state
+        //             },
+        //             //
+        //             Event::Error(e) => {
+        //                 // TODO: Does this need to exit?
+        //                 self.keyboard.cleanup();
+        //                 lxhkd_fatal!("there was an error with the X-Server: {:?}",
+        // e);             },
+        //             _ => {
+        //                 log::trace!("{}:ignoring event: {:#?}", "bind".red().bold(),
+        // event);             },
+        //         }
+        //     }
+        // }
 
         self.keyboard.cleanup();
 

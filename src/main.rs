@@ -88,7 +88,7 @@ mod macros;
 mod parse;
 mod types;
 mod utils;
-mod xcb_utils;
+mod xutils;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -102,7 +102,7 @@ use nix::{
 };
 use std::{env, fs};
 use x11rb::{connection::Connection, protocol::Event};
-use xcb_utils::XUtility;
+use xutils::XUtility;
 
 #[cfg(feature = "daemonize")]
 use daemonize::{Daemonize, User};
@@ -197,12 +197,14 @@ fn main() -> Result<()> {
     // FIXME: Do I need 2 or 3 connections?
     // Bind/Map connection
     let (conn, screen_num) = XUtility::setup_connection()?;
+    let (data_conn1, _) = XUtility::setup_connection()?;
+
     // Xcape control connection
     let (ctrl_conn, _) = XUtility::setup_connection()?;
     // Xcape data read connection
     let (data_conn, _) = XUtility::setup_connection()?;
 
-    let keyboard = Keyboard::new(conn, ctrl_conn, data_conn, screen_num, &config)?;
+    let keyboard = Keyboard::new(conn, data_conn1, ctrl_conn, data_conn, screen_num, &config)?;
 
     if args.keysyms {
         keyboard.list_keysyms()?;

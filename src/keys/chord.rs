@@ -144,6 +144,11 @@ impl Chord {
     pub(crate) fn update_modmask(&mut self, new: ModifierMask) {
         self.modmask = new;
     }
+
+    /// Change the `Keycode` of the `CharacterMap`
+    pub(crate) fn update_keycode(&mut self, new: Keycode) {
+        self.charmap.set_code(new);
+    }
 }
 
 // =================== Chain ======================

@@ -210,8 +210,7 @@ fn main() -> Result<()> {
     }
 
     let mut daemon = Daemon::new(keyboard, config);
-    daemon.process_bindings()?;
-    daemon.process_xcape()?;
+    daemon.process_configuration()?;
     daemon.daemonize()?;
 
     Ok(())

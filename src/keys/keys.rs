@@ -468,24 +468,26 @@ impl fmt::Display for XButton {
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub(crate) struct CharacterMap {
     /// The UTF-8 representation of the key. E.g., `Hyper_L`
-    utf:     String,
+    utf:      String,
     /// The code of the physical key on the keyboard this key is on
-    code:    Keycode,
+    code:     Keycode,
     /// The modifiers to apply to this key
-    modmask: u16,
+    modmask:  u16,
     /// The symbol that represents this key after applying modifiers
-    symbol:  Keysym,
+    symbol:   Keysym,
     /// The level the key is in
     ///  - ONE_LEVEL: does not depend on a any modifiers
     ///  - TWO_LEVEL: depends on `Shift` modifier (`Lock` doesn't affect)
     ///  - THREE_LEVEL: `Shift` + extra modifier (`Lock` doesn't affect)
     ///  - FOUR_LEVEL: `Shift` + extra modifier not found in `THREE_LEVEL`
-    level:   u8,
+    level:    u8,
     /// The virtual modifiers of a key. If it is not a modifier then this field
     /// is 0. This field may not be needed
-    vmod:    u16,
+    vmod:     u16,
     /// The group that this key is in
-    group:   u16,
+    group:    u16,
+    /// Whether the key has a spot on the keyboard
+    is_bound: bool,
 }
 
 impl CharacterMap {
@@ -497,6 +499,11 @@ impl CharacterMap {
     /// Return the `code` (`Keycode`) of the `CharacterMap`
     pub(crate) fn code(&self) -> Keycode {
         self.code
+    }
+
+    /// Set the `code` (`Keycode`) of the `CharacterMap`
+    pub(crate) fn set_code(&mut self, code: Keycode) {
+        self.code = code;
     }
 
     /// Return the `modmask` of the `CharacterMap`
@@ -524,7 +531,13 @@ impl CharacterMap {
         self.group
     }
 
+    /// Return whether the key is bound to the keyboard
+    pub(crate) fn is_bound(&self) -> bool {
+        self.is_bound
+    }
+
     /// Generate a new `CharacterMap`
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         keysym_str: String,
         keycode: Keycode,
@@ -533,6 +546,7 @@ impl CharacterMap {
         level: u8,
         vmod: u16,
         group: u8,
+        is_bound: bool,
     ) -> Self {
         Self {
             utf: keysym_str,
@@ -542,6 +556,7 @@ impl CharacterMap {
             level,
             vmod,
             group: u16::from(group),
+            is_bound,
         }
     }
 
@@ -554,13 +569,14 @@ impl CharacterMap {
             map.clone()
         } else {
             Self {
-                utf:     String::from("<null>"),
-                code:    0,
-                modmask: 0,
-                symbol:  keysym,
-                level:   0,
-                vmod:    0,
-                group:   0,
+                utf:      String::from("<null>"),
+                code:     0,
+                modmask:  0,
+                symbol:   keysym,
+                level:    0,
+                vmod:     0,
+                group:    0,
+                is_bound: false,
             }
         }
     }
@@ -568,13 +584,14 @@ impl CharacterMap {
     /// Return a blank `CharacterMap` for mouse button events
     pub(crate) fn blank_charmap(name: &str) -> Self {
         Self {
-            utf:     String::from(name),
-            code:    0,
-            modmask: 0,
-            symbol:  0,
-            level:   0,
-            vmod:    0,
-            group:   0,
+            utf:      String::from(name),
+            code:     0,
+            modmask:  0,
+            symbol:   0,
+            level:    0,
+            vmod:     0,
+            group:    0,
+            is_bound: true,
         }
     }
 

@@ -42,6 +42,7 @@ use x11rb::{
             GetCompatMapReply,
             GetControlsReply,
             GetMapReply,
+            GetStateReply,
             Group,
             KeyModMap,
             KeySymMap,
@@ -55,10 +56,12 @@ use x11rb::{
             ChangeKeyboardControlAux,
             ConnectionExt,
             EventMask,
+            GetInputFocusReply,
             GetKeyboardMappingReply,
             GetModifierMappingReply,
             Keycode,
             Keysym,
+            MapIndex,
             ModMask,
         },
         xtest::{self, ConnectionExt as _},
@@ -222,6 +225,61 @@ impl Keyboard {
     // ModDef
     // KeyType
 
+    /// Return the `Xcape` object
+    pub(crate) fn xcape(&self) -> &Xcape {
+        &self.xcape
+    }
+
+    /// Return the root window
+    pub(crate) fn root(&self) -> xproto::Window {
+        self.root
+    }
+
+    /// Return the connection to the X-Server
+    pub(crate) fn connection(&self) -> &RustConnection {
+        &self.conn
+    }
+
+    /// Flush actions to the X-Server
+    pub(crate) fn flush(&self) {
+        // self.conn.flush().is_ok()
+        if let Err(e) = self.conn.flush() {
+            log::warn!("failed to flush actions to X-server");
+        }
+    }
+
+    /// Synchronize events with the X-Server
+    pub(crate) fn sync(&self) {
+        if let Err(e) = self.conn.sync() {
+            log::warn!("failed to sync events with X-server");
+        }
+    }
+
+    /// Return the device's ID
+    pub(crate) fn device_id(&self) -> Xid {
+        self.device_id
+    }
+
+    /// Return the `CharacterMap`
+    pub(crate) fn charmap(&self) -> &Vec<CharacterMap> {
+        &self.charmap
+    }
+
+    /// Shorter `poll_for_event` (non-blocking)
+    pub(crate) fn poll_for_event(&self) -> Option<Event> {
+        self.conn
+            .poll_for_event()
+            .context("failed to poll for next event")
+            .ok()?
+    }
+
+    /// Shorter `wait_for_event` (blocking)
+    pub(crate) fn wait_for_event(&self) -> Result<Event> {
+        self.conn
+            .wait_for_event()
+            .context("failed to wait for next event")
+    }
+
     /// Get the `GetKeyboardMappingReply`. This only contains the `Keysyms` from
     /// the minimum keycode to the maximum keycode. Much simpler that
     /// [`get_map_reply`](Keyboard::get_map_reply), but doesn't provide as much
@@ -351,8 +409,17 @@ impl Keyboard {
         Ok(())
     }
 
-    // TODO: To help further confirm that keys are modifiers, use the returned array
-    // to compare the user set mappings to
+    /// Query the server for the current keyboard state
+    pub(crate) fn get_state(&self) -> Result<GetStateReply> {
+        self.conn
+            .xkb_get_state(ID::USE_CORE_KBD.into())
+            .context("failed to get `GetStateReply`")?
+            .reply()
+            .context("failed to get XKB `GetStateReply`")
+    }
+
+    /// Get the modifier mappings on the keyboard. This returns the keycodes
+    /// that are modifiers that are in use on the user's keyboard
     pub(crate) fn get_modifier_mapping(&self) -> Result<GetModifierMappingReply> {
         // self.modifiers = reply.keycodes
         self.conn
@@ -414,6 +481,35 @@ impl Keyboard {
             .context("failed to get XKB `GetMapReply`")?
             .reply()
             .context("failed to get 'GetMapReply' reply")
+    }
+
+    /// Set the lock modifier state for the specified `Group`
+    pub(crate) fn latch_lock_state(&self, group: Group) -> Result<()> {
+        self.conn
+            .xkb_latch_lock_state(
+                ID::USE_CORE_KBD.into(),
+                0,     // affect_mod_locks
+                0,     // mod_locks
+                true,  // lock_group
+                group, // group_lock
+                0,     // affect_mod_latches
+                false, // latch_group
+                0,     // group_latch
+            )
+            .context("failed to get latch lock state")?
+            .check()
+            .context("failed to check latch lock state")?;
+
+        Ok(())
+    }
+
+    /// Return the informatin about the focused `Window`
+    pub(crate) fn get_input_focus(&self) -> Result<GetInputFocusReply> {
+        self.conn
+            .get_input_focus()
+            .context("failed to get `GetInputFocusReply`")?
+            .reply()
+            .context("failed to get `GetInputFocusReply` reply")
     }
 
     /// Release queued up events from grabbing the keyboard/mouse actively
@@ -539,6 +635,7 @@ impl Keyboard {
                                 key_level,
                                 vmod,
                                 group,
+                                true,
                             );
 
                             // println!("CHAR: {:#?}", charmap);
@@ -561,8 +658,6 @@ impl Keyboard {
         let reply = self.get_keyboard_mapping_reply()?;
         self.keysyms_per_keycode = reply.keysyms_per_keycode;
 
-        // TODO: Use lock mods
-        // let r = self.conn.xkb_get_state(ID::USE_CORE_KBD.into())?.reply()?;
         // let k = self
         //     .conn
         //     .xkb_get_names(
@@ -570,6 +665,10 @@ impl Keyboard {
         //         NameDetail::SYMBOLS | NameDetail::KEYCODES | NameDetail::KEY_NAMES,
         //     )?
         //     .reply()?;
+
+        // let modmap = self.get_modifier_mapping()?;
+        // println!("MODMAP: {:#?}", modmap);
+        // std::process::exit(1);
 
         Ok(())
     }
@@ -582,12 +681,8 @@ impl Keyboard {
     /// This method does not require that there be a built `CharacterMap` vector
     pub(crate) fn modmask_from_keycode(&self, keycode: Keycode) -> Result<ModifierMask> {
         let mut modmask = ModifierMask::new(0);
-        let r = self
-            .conn
-            .get_modifier_mapping()
-            .context("failed to get modifier mapping")?
-            .reply()
-            .context("failed to get modifier mapping reply")?;
+
+        let r = self.get_modifier_mapping()?;
 
         let num_mod = r.keycodes.len() / usize::from(r.keycodes_per_modifier());
 
@@ -604,50 +699,7 @@ impl Keyboard {
         Ok(modmask)
     }
 
-    /// Return the `Xcape` object
-    pub(crate) fn xcape(&self) -> &Xcape {
-        &self.xcape
-    }
-
-    /// Return the connection to the X-Server
-    pub(crate) fn connection(&self) -> &RustConnection {
-        &self.conn
-    }
-
-    /// Return the root window
-    pub(crate) fn root(&self) -> xproto::Window {
-        self.root
-    }
-
-    /// Flush actions to the X-Server
-    pub(crate) fn flush(&self) -> bool {
-        self.conn.flush().is_ok()
-    }
-
-    /// Return the device's ID
-    pub(crate) fn device_id(&self) -> Xid {
-        self.device_id
-    }
-
-    /// Return the `CharacterMap`
-    pub(crate) fn charmap(&self) -> &Vec<CharacterMap> {
-        &self.charmap
-    }
-
-    /// Shorter `poll_for_event` (non-blocking)
-    pub(crate) fn poll_for_event(&self) -> Option<Event> {
-        self.conn
-            .poll_for_event()
-            .context("failed to poll for next event")
-            .ok()?
-    }
-
-    /// Shorter `wait_for_event` (blocking)
-    pub(crate) fn wait_for_event(&self) -> Result<Event> {
-        self.conn
-            .wait_for_event()
-            .context("failed to wait for next event")
-    }
+    // ================ Grab / Ungrab =================
 
     /// Grab control of all keyboard input
     pub(crate) fn grab_keyboard(&self) -> Result<()> {
@@ -785,6 +837,530 @@ impl Keyboard {
         self.flush();
     }
 
+    // ================= Fake Events ==================
+
+    /// Create a modifier to send as a fake key. Note that `KeyPressEvent` and
+    /// `KeyReleaseEvent` are the same besides their `response_type`
+    pub(crate) fn make_modifier(
+        &self,
+        modmask: u16,
+        pressed: bool,
+        window: xproto::Window,
+    ) -> Result<()> {
+        let reply = self.get_modifier_mapping()?;
+        let keycodes_per_modifier = reply.keycodes_per_modifier();
+        let modmap = reply.keycodes;
+
+        println!("MODMASK == {:#?}", modmask);
+
+        for mod_idx in u16::from(MapIndex::SHIFT)..=u16::from(MapIndex::M5) {
+            if modmask & (1 << mod_idx) != 0 {
+                'inner: for modkey in 0..keycodes_per_modifier {
+                    let keycode = modmap
+                        [(mod_idx * u16::from(keycodes_per_modifier) + u16::from(modkey)) as usize];
+
+                    if keycode != 0 {
+                        self.conn
+                            .xtest_fake_input(
+                                pressed
+                                    .then(|| xproto::KEY_PRESS_EVENT)
+                                    .unwrap_or(xproto::KEY_RELEASE_EVENT),
+                                keycode,
+                                x11rb::CURRENT_TIME,
+                                window,
+                                1,
+                                1,
+                                0,
+                            )?
+                            .check()?;
+
+                        // self.make_key_event(
+                        //     keycode,
+                        //     pressed
+                        //         .then(|| xproto::KEY_PRESS_EVENT)
+                        //         .unwrap_or(xproto::KEY_RELEASE_EVENT),
+                        //     &event,
+                        // );
+
+                        // self.make_generic_key_event(
+                        //     pressed
+                        //         .then(|| xproto::KEY_PRESS_EVENT)
+                        //         .unwrap_or(xproto::KEY_RELEASE_EVENT),
+                        //     keycode,
+                        //     window,
+                        // );
+
+                        self.sync();
+                        break 'inner;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Send a key press or release event
+    pub(crate) fn make_key(
+        &self,
+        chord: &Chord,
+        modstate: u16,
+        pressed: bool,
+        window: xproto::Window,
+    ) -> Result<()> {
+        let mut modmask = ModifierMask::from(modstate) | chord.modmask();
+        let mut xtest = false;
+
+        if window == 0 || window == self.get_input_focus()?.focus {
+            xtest = true;
+        }
+
+        if xtest {
+            // let state = self.get_state()?;
+            // let curr_group = state.group;
+            //
+            // if u16::from(curr_group) != chord.charmap().group() {
+            //     self.latch_lock_state((chord.charmap().group() as u8).try_into().context(
+            //         "failed to convert `CharacterMap` group to `Group` for
+            // `latch_lock_state`",     )?)?;
+            // }
+
+            if modmask.mask() != 0 {
+                // Send modifier if the key contains a modifier
+                println!("MAKING MODIFIER");
+                self.make_modifier(modmask.mask(), pressed, window)
+                    .context("failed to send key modifier event")?;
+            }
+
+            // Send the regular key, without a mask
+            println!("== MAKING EVENT ==");
+            self.conn
+                .xtest_fake_input(
+                    pressed
+                        .then(|| xproto::KEY_PRESS_EVENT)
+                        .unwrap_or(xproto::KEY_RELEASE_EVENT),
+                    chord.charmap().code(),
+                    x11rb::CURRENT_TIME,
+                    window,
+                    1,
+                    1,
+                    0,
+                )?
+                .check()?;
+
+            // self.make_key_event(
+            //     chord.charmap().code(),
+            //     pressed
+            //     .then(|| xproto::KEY_PRESS_EVENT)
+            //     .unwrap_or(xproto::KEY_RELEASE_EVENT),
+            //     &event,
+            //     );
+
+            // self.make_generic_key_event(
+            //     pressed
+            //         .then(|| xproto::KEY_PRESS_EVENT)
+            //         .unwrap_or(xproto::KEY_RELEASE_EVENT),
+            //     chord.charmap().code(),
+            //     window,
+            // );
+
+            // if u16::from(curr_group) != chord.charmap().group() {
+            //     self.latch_lock_state(curr_group)?;
+            // }
+
+            // self.sync();
+        } else {
+            modmask.combine_u16(chord.charmap().modmask() << 13);
+
+            let event = xproto::KeyPressEvent {
+                response_type: pressed
+                    .then(|| xproto::KEY_PRESS_EVENT)
+                    .unwrap_or(xproto::KEY_RELEASE_EVENT),
+                detail:        chord.charmap().code(),
+                sequence:      0,
+                time:          x11rb::CURRENT_TIME,
+                root:          window,
+                event:         x11rb::NONE,
+                child:         x11rb::NONE,
+                root_x:        1,
+                root_y:        1,
+                event_x:       1,
+                event_y:       1,
+                state:         modmask.mask(),
+                same_screen:   true,
+            };
+
+            self.conn
+                .send_event(
+                    true, // propagate
+                    window,
+                    pressed
+                        .then(|| EventMask::KEY_PRESS)
+                        .unwrap_or(EventMask::KEY_RELEASE),
+                    event,
+                )
+                .context("failed to send key event")?
+                .check()
+                .context("failed to check result after sending key event")?;
+
+            self.flush();
+        }
+
+        Ok(())
+    }
+
+    /// Send a sequence of keys, including modifiers
+    pub(crate) fn make_keysequence(
+        &self,
+        mut chords: Vec<Chord>,
+        pressed: bool,
+        window: xproto::Window,
+    ) -> Result<()> {
+        let mut modstate = 0;
+        let mut change_keymap = false;
+        let mut scratch_code = 0;
+
+        // println!("== MAKING == {:#?}", chords);
+
+        let kb_mapping = self.get_keyboard_mapping_reply()?;
+
+        for i in self.min_keycode..self.max_keycode {
+            let mut is_empty = true;
+            'inner: for j in 0..kb_mapping.keysyms_per_keycode {
+                let sym_idx = (i - self.min_keycode) * kb_mapping.keysyms_per_keycode + j;
+
+                if kb_mapping.keysyms[sym_idx as usize] == 0 {
+                    break 'inner;
+                }
+
+                is_empty = false;
+            }
+
+            if is_empty {
+                scratch_code = i;
+                break;
+            }
+        }
+
+        println!("SCRATCH: {}", scratch_code);
+
+        for chord in &mut chords {
+            if !chord.charmap().is_bound() {
+                log::debug!("changing keyboard mapping");
+                self.conn
+                    .change_keyboard_mapping(1, scratch_code, 1, &[chord.charmap().symbol()])
+                    .context("failed to change keyboard mapping")?
+                    .check()
+                    .context("failed to check result after changing keyboard mapping")?;
+                self.sync();
+
+                chord.update_keycode(scratch_code);
+                change_keymap = true;
+            }
+
+            self.make_key(chord, modstate, pressed, window)
+                .with_context(|| format!("failed to send key: {}", chord.charmap().utf()))?;
+
+            if !chord.charmap().is_bound() {
+                self.sync();
+            }
+        }
+
+        if change_keymap {
+            log::debug!("changing keyboard mapping back");
+            self.conn.change_keyboard_mapping(1, scratch_code, 1, &[0]);
+            self.sync();
+        }
+
+        self.flush();
+
+        Ok(())
+    }
+
+    // ================ GenericEvent ==================
+
+    /// Make a generic event with no window
+    pub(crate) fn make_generic_event_no_window(
+        &self,
+        event_type: u8,
+        sim_keycode: u8,
+    ) -> Result<()> {
+        log::debug!(
+            "{} for {}",
+            "generated fake key press".green().bold(),
+            sim_keycode
+        );
+        self.conn
+            .xtest_fake_input(
+                event_type,          // event type
+                sim_keycode,         // detail
+                x11rb::CURRENT_TIME, // time
+                x11rb::NONE,
+                0,
+                0,
+                0,
+            )
+            .context("failed to send `xtest_fake_input`")?
+            .check()
+            .context("failed to check `xtest_fake_input`")?;
+        Ok(())
+    }
+
+    /// Wrapper function to create `fake` events. An event does not need to be
+    /// sent to this function, instead a `Window` is
+    pub(crate) fn make_generic_key_event(
+        &self,
+        event_type: u8,
+        sim_keycode: u8,
+        window: xproto::Window,
+    ) -> Result<()> {
+        log::debug!(
+            "{} for {}",
+            "generated fake key press".green().bold(),
+            sim_keycode
+        );
+        self.conn
+            .xtest_fake_input(
+                event_type,          // event type
+                sim_keycode,         // detail
+                x11rb::CURRENT_TIME, // time
+                window,
+                1,
+                1,
+                0,
+            )
+            .context("failed to send `xtest_fake_input`")?
+            .check()
+            .context("failed to check `xtest_fake_input`")?;
+        Ok(())
+    }
+
+    /// Create a [`KeyPressEvent`](x11rb::protocol::xproto::KeyPressEvent) or
+    /// [`KeyReleaseEvent`](x11rb::protocol::xproto::KeyReleaseEvent)
+    pub(crate) fn make_key_event(
+        &self,
+        sim_keycode: u8,
+        event_type: u8,
+        event: &xproto::KeyPressEvent,
+    ) -> Result<()> {
+        log::debug!(
+            "{} for {}",
+            "generated fake key press".green().bold(),
+            sim_keycode
+        );
+        self.conn
+            .xtest_fake_input(
+                event_type,          // event type
+                sim_keycode,         // detail -- simulated keycode
+                x11rb::CURRENT_TIME, // time
+                event.root,
+                event.root_x,
+                event.root_y,
+                0,
+            )
+            .context("failed to send `xtest_fake_input` (KeyPress)")?
+            .check()
+            .context("failed to check `xtest_fake_input`  (KeyPress)")?;
+        Ok(())
+    }
+
+    /// Create a [`KeyPressEvent`](x11rb::protocol::xproto::KeyPressEvent)
+    /// This does not allow for sending a modifier (i.e., changed state)
+    pub(crate) fn make_key_press_event(
+        &self,
+        sim_keycode: u8,
+        event: &xproto::KeyPressEvent,
+    ) -> Result<()> {
+        log::debug!(
+            "{} for {}",
+            "generated fake key press".green().bold(),
+            sim_keycode
+        );
+        self.conn
+            .xtest_fake_input(
+                xproto::KEY_PRESS_EVENT, // event type
+                sim_keycode,             // detail -- simulated keycode
+                x11rb::CURRENT_TIME,     // time
+                event.root,
+                event.root_x,
+                event.root_y,
+                0,
+            )
+            .context("failed to send `xtest_fake_input` (KeyPress)")?
+            .check()
+            .context("failed to check `xtest_fake_input`  (KeyPress)")?;
+        Ok(())
+    }
+
+    /// Create a [`KeyReleaseEvent`](x11rb::protocol::xproto::KeyReleaseEvent)
+    pub(crate) fn make_key_release_event(
+        &self,
+        sim_keycode: u8,
+        event: &xproto::KeyReleaseEvent,
+    ) -> Result<()> {
+        log::debug!(
+            "{} for {}",
+            "generated fake key release".green().bold(),
+            sim_keycode
+        );
+        self.conn
+            .xtest_fake_input(
+                xproto::KEY_RELEASE_EVENT, // event type
+                sim_keycode,               // detail -- simulated keycode
+                x11rb::CURRENT_TIME,       // time
+                event.root,
+                event.root_x,
+                event.root_y,
+                0,
+            )
+            .context("failed to send `xtest_fake_input` (KeyRelease)")?
+            .check()
+            .context("failed to check `xtest_fake_input` (KeyRelease)")?;
+        Ok(())
+    }
+
+    /// Create a [`ButtonPressEvent`](x11rb::protocol::xproto::ButtonPressEvent)
+    pub(crate) fn make_button_press_event(
+        &self,
+        button: u8,
+        event: &xproto::ButtonPressEvent,
+    ) -> Result<()> {
+        self.conn
+            .xtest_fake_input(
+                xproto::BUTTON_PRESS_EVENT, // event type
+                button,                     // detail -- simulated button code
+                x11rb::CURRENT_TIME,        // time
+                event.root,
+                event.root_x,
+                event.root_y,
+                0,
+            )
+            .context("failed to send `xtest_fake_input`  (ButtonPress)")?
+            .check()
+            .context("failed to check `xtest_fake_input` (ButtonPress)")?;
+        Ok(())
+    }
+
+    /// Create a [`ButtonReleaseEvent`](x11rb::protocol::xproto::
+    /// ButtonReleaseEvent)
+    pub(crate) fn make_button_release_event(
+        &self,
+        button: u8,
+        event: &xproto::ButtonReleaseEvent,
+    ) -> Result<()> {
+        self.conn
+            .xtest_fake_input(
+                xproto::BUTTON_RELEASE_EVENT, // event type
+                button,                       // detail -- simulated button code
+                x11rb::CURRENT_TIME,          // time
+                event.root,
+                event.root_x,
+                event.root_y,
+                0,
+            )
+            .context("failed to send `xtest_fake_input`  (ButtonPress)")?
+            .check()
+            .context("failed to check `xtest_fake_input` (ButtonPress)")?;
+        Ok(())
+    }
+
+    // =============== Without Event ==================
+
+    /// Create a [`KeyPressEvent`](x11rb::protocol::xproto::KeyPressEvent).
+    /// Doesn't need to be given an event
+    #[allow(dead_code)]
+    pub(crate) fn make_key_press_no_event(&self, sim_keycode: u8) -> Result<()> {
+        self.conn
+            .xtest_fake_input(
+                xproto::KEY_PRESS_EVENT, // event type
+                sim_keycode,             // detail -- simulated keycode
+                x11rb::CURRENT_TIME,     // time
+                x11rb::NONE,             // root
+                0,                       // root_x
+                0,                       // root_y
+                0,                       // device_id
+            )
+            .context("failed to send `xtest_fake_input` (KeyPress)")?
+            .check()
+            .context("failed to check `xtest_fake_input`  (KeyPress)")?;
+        Ok(())
+    }
+
+    /// Create a [`KeyReleaseEvent`](x11rb::protocol::xproto::KeyReleaseEvent).
+    /// Doesn't need to be given an event
+    #[allow(dead_code)]
+    pub(crate) fn make_key_release_no_event(&self, sim_keycode: u8) -> Result<()> {
+        self.conn
+            .xtest_fake_input(
+                xproto::KEY_RELEASE_EVENT, // event type
+                sim_keycode,               // detail -- simulated keycode
+                x11rb::CURRENT_TIME,       // time
+                x11rb::NONE,               // root
+                0,                         // root_x
+                0,                         // root_y
+                0,                         // device_id
+            )
+            .context("failed to send `xtest_fake_input` (KeyRelease)")?
+            .check()
+            .context("failed to check `xtest_fake_input` (KeyRelease)")?;
+        Ok(())
+    }
+
+    /// Create a [`ButtonPressEvent`](x11rb::protocol::xproto::
+    /// ButtonPressEvent). Doesn't need to be given an event
+    #[allow(dead_code)]
+    pub(crate) fn make_button_press_no_event(&self, button: u8) -> Result<()> {
+        self.conn
+            .xtest_fake_input(
+                xproto::BUTTON_PRESS_EVENT, // event type
+                button,                     // detail -- simulated button code
+                x11rb::CURRENT_TIME,        // time
+                x11rb::NONE,                // root
+                0,                          // root_x
+                0,                          // root_y
+                0,                          // device_id
+            )
+            .context("failed to send `xtest_fake_input`  (ButtonPress)")?
+            .check()
+            .context("failed to check `xtest_fake_input` (ButtonPress)")?;
+        Ok(())
+    }
+
+    /// Create a [`ButtonReleaseEvent`](x11rb::protocol::xproto::
+    /// ButtonReleaseEvent). Doesn't need to be given an event
+    #[allow(dead_code)]
+    pub(crate) fn make_button_release_no_event(
+        &self,
+        button: u8,
+        duration_ms: Option<u32>,
+    ) -> Result<()> {
+        self.conn
+            .xtest_fake_input(
+                xproto::BUTTON_RELEASE_EVENT,       // event type
+                button,                             // detail -- simulated button code
+                x11rb::CURRENT_TIME,                // time
+                duration_ms.unwrap_or(x11rb::NONE), // root
+                0,                                  // root_x
+                0,                                  // root_y
+                0,                                  // device_id
+            )
+            .context("failed to send `xtest_fake_input`  (ButtonPress)")?
+            .check()
+            .context("failed to check `xtest_fake_input` (ButtonPress)")?;
+        Ok(())
+    }
+
+    // =================== Other ======================
+
+    /// Create a full click of the mouse (`ButtonPress` + `ButtonRelease`)
+    #[allow(dead_code)]
+    pub(crate) fn make_click(&self, button: u8, duration_ms: u32) -> Result<()> {
+        self.make_button_press_no_event(button)?;
+        self.make_button_release_no_event(button, Some(duration_ms))?;
+
+        Ok(())
+    }
+
     /// Ungrab everything this program grabbed. Used for when the user stops the
     /// program or the program gracefully exits
     pub(crate) fn cleanup(&self) {
@@ -859,6 +1435,7 @@ impl Keyboard {
     /// === Debugging Function ===
     ///
     /// List the active modifiers
+    #[allow(dead_code)]
     pub(crate) fn get_active_mods(&self) {
         self.charmap
             .iter()
@@ -878,6 +1455,7 @@ impl Keyboard {
     /// Display the `Lock` modifier masks. Comparing the masks from the
     /// `CharacterMap` database and the method in which the modfield is
     /// extracted from the `Keycode`
+    #[allow(dead_code)]
     pub(crate) fn get_lock_fields(&self) -> Result<()> {
         let num_char = CharacterMap::charmap_from_keysym_utf(&self.charmap, "Num_Lock")
             .context("couldn't find `Num_Lock` in `CharacterMap`")?;
@@ -912,30 +1490,6 @@ impl Keyboard {
         Ok(())
     }
 
-    // pub(crate) fn latch_lock_state(&self) {
-    //     let lockg = self
-    //         .charmap
-    //         .iter()
-    //         .find(|c| c.utf == "Scroll_Lock")
-    //         .unwrap();
-    //
-    //     let l = self
-    //         .conn
-    //         .xkb_latch_lock_state(
-    //             ID::USE_CORE_KBD.into(),
-    //             0,
-    //             0,
-    //             true,
-    //             Group::from(lockg.group as u8),
-    //             0,
-    //             false,
-    //             0,
-    //         )
-    //         .context("failed to get latch lock state")?
-    //         .check()
-    //         .context("failed to check latch lock state")?;
-    // }
-
     // pub(crate) fn set_cursor(
     //     &self,
     //     window: xproto::Window,
@@ -952,35 +1506,6 @@ impl Keyboard {
 
     ///////////////////////
 
-    // /// Return the modifier-field code from a specified
-    // /// [`Keycode`](xcb::Keycode)
-    // pub(crate) fn modfield_from_keycode(&self, keycode: Keycode) -> u16 {
-    //     let mut modfield = 0_u16;
-    //     let mods = self.keymap.mods();
-    //
-    //     if let Ok(reply) = xcb::x::get_modifier_mapping(self.conn).get_reply() {
-    //         if reply.keycodes_per_modifier() > 0 {
-    //             let keycodes = reply.keycodes();
-    //             let num_mods =
-    //                 (keycodes.iter().len() / reply.keycodes_per_modifier() as
-    // usize) as u8;
-    //
-    //             for i in 0..num_mods {
-    //                 for j in 0..reply.keycodes_per_modifier() {
-    //                     let mkc = keycodes[i * reply.keycodes_per_modifier() +
-    // j];                     if mkc == xcb::x::NO_SYMBOL as u8 {
-    //                         continue;
-    //                     }
-    //                     if keycode == mkc {
-    //                         modfield |= 1 << i;
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     modfield
-    // }
-    //
     // /// Return the modifier field based on a keysym
     // pub(crate) fn modfield_from_keysym(&self, keysym: XKeysym) -> u16 {
     //     let mut modfield = 0_u16;

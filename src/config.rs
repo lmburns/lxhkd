@@ -206,6 +206,7 @@ impl Action {
             },
             Self::Remap(remap) => {
                 log::trace!("running remap: {}", remap);
+                // self.keyboard.make_keysequence(vec![chord], true, ev.root)?;
             },
             Self::Xcape(xcape) => {
                 log::trace!("running xcape: {}", xcape);

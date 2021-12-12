@@ -25,7 +25,7 @@ impl Handler {
         match event.response_type {
             xproto::KEY_PRESS_EVENT => {
                 log::debug!("key press handler: kc:{}-mask:{}", keycode, mask);
-                println!("PRESS EVENT; {:#?}", event);
+                // println!("PRESS EVENT; {:#?}", event);
 
                 let charmap = CharacterMap::charmap_from_keycode(keyboard.charmap(), keycode)
                     .with_context(|| {
@@ -75,7 +75,7 @@ impl Handler {
             },
             xproto::KEY_RELEASE_EVENT => {
                 log::debug!("key release handler: kc:{}-mask:{}", keycode, mask);
-                println!("RELEASE EVENT; {:#?}", event);
+                // println!("RELEASE EVENT; {:#?}", event);
 
                 let charmap = CharacterMap::charmap_from_keycode(keyboard.charmap(), keycode)
                     .with_context(|| {

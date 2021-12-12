@@ -24,7 +24,7 @@ use std::{env, fs, path::PathBuf};
     color = clap::ColorChoice::Auto,
     global_setting = AppSettings::DisableHelpSubcommand,
     global_setting = AppSettings::DeriveDisplayOrder,
-    global_setting = AppSettings::HidePossibleValuesInHelp,
+    global_setting = AppSettings::HidePossibleValues,
     global_setting = AppSettings::InferSubcommands,
 )]
 pub(crate) struct Opts {
@@ -34,11 +34,11 @@ pub(crate) struct Opts {
         short,
         global = true,
         parse(from_occurrences),
-        long_about = "
+        long_help = "
         Set the verbosity level of the program. There are 2 extra levels after the default (INFO). \
-                      If `-v` is used, DEBUG messages are displayed, and if `-vv` is used TRACE \
-                      messages are displayed. The verbosity can also be set with the `LXHKD_LOG` \
-                      environment variable"
+                     If `-v` is used, DEBUG messages are displayed, and if `-vv` is used TRACE \
+                     messages are displayed. The verbosity can also be set with the `LXHKD_LOG` \
+                     environment variable"
     )]
     pub(crate) verbose: u8,
 
@@ -63,7 +63,7 @@ pub(crate) struct Opts {
             .map(|_| ())
             .map_err(|e| e.to_string())
         },
-        long_about = "\
+        long_help = "\
         Specify the location of the confiugration file. The default location is \
                 `$XDG_CONFIG_HOME/lxhkd/lxhkd.yml`"
     )]
@@ -76,10 +76,10 @@ pub(crate) struct Opts {
         short = 'L',
         takes_value = false,
         conflicts_with = "kill",
-        long_about = "\
+        long_help = "\
         List the available keysyms that one can use for mapping. If this option is used, it is the \
-                      only option that should be used and will exit the program after display the \
-                      keysyms
+                     only option that should be used and will exit the program after display the \
+                     keysyms
         "
     )]
     pub(crate) keysyms: bool,
@@ -91,11 +91,11 @@ pub(crate) struct Opts {
         long = "kill",
         short = 'k',
         takes_value = false,
-        long_about = "\
+        long_help = "\
         Kill the daemonized process if it is currently running. If a PID file was specified on the \
-                      command line when the process was first daemonized, that same PID file must \
-                      be specified again for the process to be killed. Otherwise, the PID file \
-                      will be written to and read from a default location"
+                     command line when the process was first daemonized, that same PID file must \
+                     be specified again for the process to be killed. Otherwise, the PID file \
+                     will be written to and read from a default location"
     )]
     pub(crate) kill: bool,
 
@@ -107,7 +107,7 @@ pub(crate) struct Opts {
         short = 'd',
         takes_value = false,
         conflicts_with_all = &["kill", "keysyms", "temporary"],
-        long_about = "Send the process to the background and write the PID of the process to a \
+        long_help = "Send the process to the background and write the PID of the process to a \
                       PID file"
     )]
     pub(crate) daemonize: bool,
@@ -130,7 +130,7 @@ pub(crate) struct Opts {
         number_of_values = 1,
         value_name = "file",
         value_hint = ValueHint::FilePath,
-        long_about = "\
+        long_help = "\
         Allows specifying the location of the PID file. This option is usually discouraged if \
                 one wishes to have the ability to use the `--kill` flag later. The `--kill` flag \
                 still can be used as long as the same PID file that was used to start the process is \
@@ -145,7 +145,7 @@ pub(crate) struct Opts {
         short = 'C',
         value_name = "when",
         possible_values = &["never", "auto", "always"],
-        long_about = "\
+        long_help = "\
         When to colorize output (usually meant for piping). Valid values are: always, \
                 auto, never. The always selection only applies to the path as of now."
     )]

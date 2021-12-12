@@ -16,8 +16,8 @@ daemon = ["daemonize"]
 daemonize = { version = "0.4.1", optional = true }
 anyhow = "1.0.44"
 thiserror = "1.0.30"
-clap = "3.0.0-beta.5"
-clap_generate = "3.0.0-beta.5"
+clap = { version = "3.0.0-rc.3", features = ["derive", "default", "cargo", "wrap_help", "env"] }
+clap_generate = "3.0.0-rc.3"
 colored = "2.0.0"
 dirs = "4.0.0"
 bimap = "0.6.1"

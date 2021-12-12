@@ -185,7 +185,7 @@ fn main() -> Result<()> {
                 }
             } else {
                 log::error!(
-                    "the daemon is not currently running or the PID file is incorrect: {}",
+                    "the daemon is not currently running or the PID file has been modified: {}",
                     colored_pid
                 );
             }

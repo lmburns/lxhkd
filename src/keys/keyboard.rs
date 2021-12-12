@@ -860,6 +860,7 @@ impl Keyboard {
                         [(mod_idx * u16::from(keycodes_per_modifier) + u16::from(modkey)) as usize];
 
                     if keycode != 0 {
+                        println!("KEYCODE == {:#?}", keycode);
                         self.conn
                             .xtest_fake_input(
                                 pressed
@@ -1025,7 +1026,7 @@ impl Keyboard {
         let kb_mapping = self.get_keyboard_mapping_reply()?;
 
         for i in self.min_keycode..self.max_keycode {
-            let mut is_empty = true;
+            let mut avail = true;
             'inner: for j in 0..kb_mapping.keysyms_per_keycode {
                 let sym_idx = (i - self.min_keycode) * kb_mapping.keysyms_per_keycode + j;
 
@@ -1033,10 +1034,10 @@ impl Keyboard {
                     break 'inner;
                 }
 
-                is_empty = false;
+                avail = false;
             }
 
-            if is_empty {
+            if avail {
                 scratch_code = i;
                 break;
             }
@@ -1137,10 +1138,10 @@ impl Keyboard {
 
     /// Create a [`KeyPressEvent`](x11rb::protocol::xproto::KeyPressEvent) or
     /// [`KeyReleaseEvent`](x11rb::protocol::xproto::KeyReleaseEvent)
-    pub(crate) fn make_key_event(
+    pub(crate) fn make_keypress_event(
         &self,
         sim_keycode: u8,
-        event_type: u8,
+        mask: u16,
         event: &xproto::KeyPressEvent,
     ) -> Result<()> {
         log::debug!(
@@ -1148,21 +1149,80 @@ impl Keyboard {
             "generated fake key press".green().bold(),
             sim_keycode
         );
+
+        let event = xproto::KeyPressEvent {
+            response_type: xproto::KEY_PRESS_EVENT,
+            detail:        sim_keycode,
+            sequence:      0,
+            time:          x11rb::CURRENT_TIME,
+            root:          event.root,
+            event:         x11rb::NONE,
+            child:         x11rb::NONE,
+            root_x:        event.root_x,
+            root_y:        event.root_y,
+            event_x:       1,
+            event_y:       1,
+            state:         mask,
+            same_screen:   true,
+        };
+
         self.conn
-            .xtest_fake_input(
-                event_type,          // event type
-                sim_keycode,         // detail -- simulated keycode
-                x11rb::CURRENT_TIME, // time
+            .send_event(
+                true, // propagate
                 event.root,
-                event.root_x,
-                event.root_y,
-                0,
+                EventMask::KEY_PRESS,
+                event,
             )
-            .context("failed to send `xtest_fake_input` (KeyPress)")?
+            .context("failed to send key event")?
             .check()
-            .context("failed to check `xtest_fake_input`  (KeyPress)")?;
+            .context("failed to check result after sending key event")?;
+
         Ok(())
     }
+
+    pub(crate) fn make_keyrelease_event(
+        &self,
+        sim_keycode: u8,
+        mask: u16,
+        event: &xproto::KeyReleaseEvent,
+    ) -> Result<()> {
+        log::debug!(
+            "{} for {}",
+            "generated fake key press".green().bold(),
+            sim_keycode
+        );
+
+        let event = xproto::KeyReleaseEvent {
+            response_type: xproto::KEY_RELEASE_EVENT,
+            detail:        sim_keycode,
+            sequence:      0,
+            time:          x11rb::CURRENT_TIME,
+            root:          event.root,
+            event:         x11rb::NONE,
+            child:         x11rb::NONE,
+            root_x:        event.root_x,
+            root_y:        event.root_y,
+            event_x:       1,
+            event_y:       1,
+            state:         mask,
+            same_screen:   true,
+        };
+
+        self.conn
+            .send_event(
+                true, // propagate
+                event.root,
+                EventMask::KEY_RELEASE,
+                event,
+            )
+            .context("failed to send key event")?
+            .check()
+            .context("failed to check result after sending key event")?;
+
+        Ok(())
+    }
+
+    /////////////////////////////////////////////////////
 
     /// Create a [`KeyPressEvent`](x11rb::protocol::xproto::KeyPressEvent)
     /// This does not allow for sending a modifier (i.e., changed state)

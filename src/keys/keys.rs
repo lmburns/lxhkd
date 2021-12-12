@@ -352,7 +352,7 @@ impl fmt::Display for ModifierMask {
 // ================ Button Code ===================
 
 /// A wrapper around a `Button`, which is a type for `u8`
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 pub(crate) struct ButtonCode(u8);
 
 impl fmt::Display for ButtonCode {
@@ -391,7 +391,7 @@ impl FromStr for ButtonCode {
 // ================== Buttons =====================
 
 /// A button press (code) on a mouse and the held modifiers
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Default)]
 pub(crate) struct XButton {
     /// The held mask of the modifiers (TODO: Does this need to be ButtonMask?)
     mask: ModifierMask,

@@ -39,7 +39,7 @@ pub(crate) enum Error {
 /// `modmask` and `event_type` are filled in. Once this `Chord` gets parsed by
 /// the [`Handler`](super::event_handler::Handler), the `modmask` and
 /// `event_type` from the reply are filled in
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub(crate) struct Chord {
     /// Extra information about the key
     charmap:    CharacterMap,

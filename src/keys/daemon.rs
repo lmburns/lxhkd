@@ -34,6 +34,8 @@ use x11rb::{
     },
 };
 
+// TODO: Add layers/modes
+
 // =================== Daemon =====================
 
 /// Global daemon state object.
@@ -265,25 +267,6 @@ impl Daemon {
 
                     action.run(&self.config.global.shell);
 
-                    // match action {
-                    //     Action::Shell(cmd) => {
-                    //         log::trace!("running shell: {}", cmd);
-                    //         Action::spawn_shell(
-                    //             cmd,
-                    //             self.config
-                    //                 .global
-                    //                 .shell
-                    //                 .as_ref()
-                    //                 .unwrap_or(&SHELL.to_string()),
-                    //         );
-                    //     },
-                    //     Action::Xcape(_) => println!("== IS XCAPE =="),
-                    //     Action::Remap(rchord) => {
-                    //         log::trace!("running remap: {}", rchord.charmap().utf());
-                    //         println!("FOUND REMAP");
-                    //     },
-                    // };
-
                     should_clear = true;
                     break;
                 },
@@ -314,7 +297,7 @@ impl Daemon {
         }
 
         for remap in self.remaps.remapped_keys() {
-            self.keyboard.grab_key(&[remap.from_to_chord()]);
+            self.keyboard.grab_key(&[remap.from_key().clone()]);
         }
 
         // if !self.xcape.is_empty() {
@@ -366,38 +349,53 @@ impl Daemon {
                             .remaps
                             .remapped_keys()
                             .iter()
-                            .find(|c| c.from_key().code() == key)
+                            .find(|c| c.from_key().charmap().code() == key)
                         {
-                            if !new.is_held() {
+                            if !new.is_used() {
                                 log::debug!(
                                     "{}:{} => {}:{} -- {}",
-                                    new.from_key().utf().purple().bold(),
-                                    new.from_key().code(),
+                                    new.from_key().charmap().utf().purple().bold(),
+                                    new.from_key().charmap().code(),
                                     new.to_keys()
                                         .iter()
-                                        .map(CharacterMap::utf)
+                                        .map(|c| c.charmap().utf())
                                         .join(",")
                                         .purple()
                                         .bold(),
-                                    new.to_keys().iter().map(CharacterMap::code).join(","),
+                                    new.to_keys().iter().map(|c| c.charmap().code()).join(","),
                                     "generated fake event".green().bold()
                                 );
 
-                                for k in new
+                                for (code, modmask) in new
                                     .to_keys()
                                     .iter()
-                                    .map(CharacterMap::code)
+                                    .map(|k| (k.charmap().code(), k.modmask()))
                                     .collect::<Vec<_>>()
                                 {
-                                    self.keyboard
-                                        .make_key_press_event(k, &ev)
-                                        .context("xcape: failed to make key press event")?;
-                                    self.remaps.mark_generated(k);
+                                    println!("CODE: {}, MASK: {}", code, modmask);
+
+                                    // self.keyboard.make_modifier(modmask.mask(), true, ev.root)?;
+
+                                    // self.keyboard
+                                    //     .make_keypress_event(code, modmask, &ev)
+                                    //     .context("xcape: failed to make key press event")?;
 
                                     self.keyboard
-                                        .make_key_release_event(k, &ev)
+                                        .make_key_press_event(code, &ev)
+                                        .context("xcape: failed to make key press event")?;
+
+                                    self.remaps.mark_generated(code);
+
+                                    ///
+                                    // self.keyboard.make_modifier(modmask.mask(), false,
+                                    // ev.root)?; self.keyboard
+                                    //     .make_keyrelease_event(code, modmask, &ev)
+                                    //     .context("xcape: failed to make key press event")?;
+                                    self.keyboard
+                                        .make_key_release_event(code, &ev)
                                         .context("xcape: failed to make key release event")?;
-                                    self.remaps.mark_generated(k);
+
+                                    self.remaps.mark_generated(code);
 
                                     self.keyboard.flush();
                                 }
@@ -470,9 +468,8 @@ impl Daemon {
                     },
                     //
                     Event::Error(e) => {
-                        // TODO: Does this need to exit?
-                        self.keyboard.cleanup();
-                        lxhkd_fatal!("there was an error with the X-Server: {:?}", e);
+                        // self.keyboard.cleanup();
+                        log::info!("there was an error with the X-Server: {:?}", e);
                     },
                     _ => {
                         log::trace!("{}:ignoring event: {:#?}", "bind".red().bold(), event);

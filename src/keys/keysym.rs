@@ -14,7 +14,7 @@ use xkbcommon::xkb;
 // ================== Keysym ======================
 
 /// A [`Keysym`](x11rb::protocol::xproto::Keysym) wrapper
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize, Default)]
 pub(crate) struct XKeysym(pub(crate) Keysym);
 
 impl XKeysym {

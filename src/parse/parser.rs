@@ -16,7 +16,6 @@ use crate::{
         chord::{Chain, Chord},
         keys::{ButtonCode, CharacterMap, ModifierMask},
         keysym::KeysymHash,
-        xcape::Xcape,
     },
     lxhkd_fatal,
 };

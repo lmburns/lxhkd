@@ -59,8 +59,6 @@ impl RemapKeyState {
             return None;
         }
 
-        println!("FROM : {:#?}", from.chords());
-
         Some(Self {
             from_key:     from.chords().get(0)?.clone(),
             to_keys:      to.chords().iter().map(Clone::clone).collect::<Vec<_>>(),
@@ -187,7 +185,7 @@ impl RemapState {
 
     /// Mark keys that have already been marked as `pressed` as no longer being
     /// `pressed`
-    pub(crate) fn mark_released(&mut self, key: Keycode) -> Option<(bool, bool)> {
+    pub(crate) fn mark_released(&mut self, key: Keycode) -> Option<bool> {
         self.remapped_keys
             .iter()
             .find(|m| m.from_key().charmap().code() == key)
@@ -206,10 +204,10 @@ impl RemapState {
                     old_used.load(Ordering::Relaxed),
                 );
 
-                (
-                    old_pressed.load(Ordering::Relaxed),
-                    old_used.load(Ordering::Relaxed),
-                )
+                // (
+                old_pressed.load(Ordering::Relaxed)
+                // old_used.load(Ordering::Relaxed),
+                // )
             })
     }
 
@@ -239,7 +237,7 @@ impl RemapState {
         {
             log::debug!(
                 "{}: changing generated to true for {}",
-                "xcape".red().bold(),
+                "remap".red().bold(),
                 map.to_keys().iter().map(|c| c.charmap().utf()).join(","),
             );
 
@@ -250,13 +248,14 @@ impl RemapState {
     /// Check if the key has been `generated`. If so, change it to not
     /// being `generated`
     pub(crate) fn check_if_generated(&mut self, key: Keycode) -> bool {
-        if let Some(ref mut map) = &mut self.remapped_keys.iter().find(|m| {
-            m.to_keys().iter().any(|to| to.charmap().code() == key)
-                && m.generated.load(Ordering::Relaxed)
-        }) {
+        if let Some(ref mut map) = &mut self
+            .remapped_keys
+            .iter()
+            .find(|m| m.to_keys().iter().any(|to| to.charmap().code() == key))
+        {
             log::debug!(
                 "{}: changing generated to false for {}",
-                "xcape".red().bold(),
+                "remap".red().bold(),
                 map.to_keys().iter().map(|c| c.charmap().utf()).join(","),
             );
             map.generated.store(false, Ordering::Relaxed);

@@ -8,7 +8,6 @@ use super::{
     keyboard::Keyboard,
     keys::{CharacterMap, ModifierMask},
     remap::{RemapKeyState, RemapState},
-    xcape_state::{XcapeKeyState, XcapeState},
 };
 use crate::{
     config::{Action, Config, SHELL},
@@ -53,8 +52,6 @@ pub(crate) struct Daemon {
     bindings:      BTreeMap<Chain, Action>,
     /// The parsed remaps in the configuration file
     remaps:        RemapState,
-    /// The parsed `Xcape` keys
-    xcape:         XcapeState,
     /// Current chain being pressed
     active_chain:  Chain,
     /// Tracker of last keypress
@@ -74,7 +71,6 @@ impl Daemon {
             config,
             bindings: BTreeMap::new(),
             remaps: RemapState::new(),
-            xcape: XcapeState::default(),
             active_chain: Chain::default(),
             last_keypress: 0,
             generated: Vec::new(),
@@ -146,11 +142,11 @@ impl Daemon {
                     let mut tokenized_to = line.tokenize();
                     tokenized_to.parse_tokens()?;
                     if let Some(chain_to) =
-                        tokenized_to.convert_to_chain(self.keyboard.charmap(), true)
+                        tokenized_to.convert_to_chain(self.keyboard.charmap(), false)
                     {
                         parsed_remaps.insert(
                             RemapKeyState::from_chains(&chain_from, &chain_to)
-                                .context("failed to insert chains into `XcapeKeyState`")?,
+                                .context("failed to insert chains into `RemapKeyState`")?,
                         );
                     }
                 }
@@ -165,48 +161,6 @@ impl Daemon {
         Ok(())
     }
 
-    /// Parse the `Xcape` bindings, turning them into an `XcapeState` object
-    pub(crate) fn process_xcape(&mut self) -> Result<()> {
-        let mut xcape_state = XcapeState::new(self.keyboard.charmap());
-
-        if let Some(xcape) = &self.config.xcape {
-            for (mut idx, l) in xcape.keys().enumerate() {
-                idx += 1;
-
-                // Keys that are being converted
-                let line = Line::new_plus(l, idx);
-                let mut tokenized_from = line.tokenize();
-                tokenized_from.parse_tokens()?;
-                if let Some(chain_from) =
-                    tokenized_from.convert_to_chain(self.keyboard.charmap(), true)
-                {
-                    let action_to = xcape
-                        .get_index(idx - 1)
-                        .context(
-                            "failed to get valid index of item in configuration's `Xcape` section",
-                        )?
-                        .1;
-
-                    // Keys that are the converted
-                    let line = Line::new_plus(action_to, idx);
-                    let mut tokenized_to = line.tokenize();
-                    tokenized_to.parse_tokens()?;
-                    if let Some(chain_to) =
-                        tokenized_to.convert_to_chain(self.keyboard.charmap(), true)
-                    {
-                        xcape_state.insert(
-                            XcapeKeyState::from_chains(&chain_from, &chain_to)
-                                .context("failed to insert chains into `XcapeKeyState`")?,
-                        );
-                    }
-                }
-            }
-        }
-        self.xcape = xcape_state;
-
-        Ok(())
-    }
-
     /// Combination of the above three functions to parse and process the
     /// configuration file's bindings into the `Daemon` struct
     pub(crate) fn process_configuration(&mut self) -> Result<()> {
@@ -217,10 +171,6 @@ impl Daemon {
         /// The `remaps` section of the configuration file
         /// Remaps keys to other keys
         self.process_remaps()?;
-
-        /// The `xcape` section of the configuration file
-        /// Remaps keys to other keys when tapped
-        self.process_xcape()?;
 
         Ok(())
     }
@@ -289,6 +239,8 @@ impl Daemon {
         Ok(())
     }
 
+    /// Start the loop that gets daemonized. Monitor X11 key presses that are
+    /// prefixed by keys found within the configuration file
     pub(crate) fn daemonize(&mut self) -> Result<()> {
         const RECORD_FROM_SERVER: u8 = 0;
         const START_OF_DATA: u8 = 4;
@@ -314,7 +266,11 @@ impl Daemon {
                     remaining = self.intercept(&reply.data)?;
                 }
             } else if reply.category == START_OF_DATA {
-                log::info!("{} is {}", "daemon".red().bold(), "STARTING".green().bold());
+                log::info!(
+                    "{} is {}",
+                    "foreground daemon".red().bold(),
+                    "STARTING".green().bold()
+                );
             } else {
                 log::warn!("`daemon` reply category is unknown: {:#?}", reply);
             }
@@ -323,9 +279,7 @@ impl Daemon {
         Ok(())
     }
 
-    // This intercept function's name was taken directly from `xcape` itself.
-    // The outline of this function was also taken from the `x11rb` examples folder,
-    // and combined with `xcape-rs`
+    // The outline of this function was taken from the `x11rb` examples folder
     //
     /// Intercept a single packet of data, returning the remaining
     pub(crate) fn intercept<'a>(&mut self, data: &'a [u8]) -> Result<&'a [u8]> {
@@ -334,11 +288,13 @@ impl Daemon {
                 let (event, remaining) = xproto::KeyPressEvent::try_parse(data)
                     .context("failed to parse `KeyPressEvent`")?;
                 log::trace!("handling key press: {:#?}", event);
+
                 let key = event.detail;
+                let state = event.state;
 
                 // If the key was an `xtest_fake_input`, skip
                 if self.remaps.check_if_generated(key) {
-                    log::info!("ignore generated: {}", key);
+                    log::debug!("auto-generated: {}", key);
                     return Ok(remaining);
                 }
 
@@ -357,18 +313,20 @@ impl Daemon {
                     .context("failed to parse `KeyReleaseEvent`")?;
                 log::trace!("handling key release: {:#?}", event);
                 let key = event.detail;
+                let state = event.state;
 
                 // If the key was an `xtest_fake_input`, skip
                 if self.remaps.check_if_generated(key) {
-                    log::info!("ignore generated: {}", key);
+                    log::debug!("auto-generated: {}", key);
                     Ok(remaining)
                 } else {
-                    if let Some(new) = self
-                        .remaps
-                        .remapped_keys()
-                        .iter()
-                        .find(|c| c.from_key().charmap().code() == key)
-                    {
+                    if let Some(chord) = Handler::handle_key_release(&event, &self.keyboard) {
+                        self.process_chords(chord, event.time, event.response_type, event.root)?;
+                    }
+
+                    if let Some(new) = self.remaps.remapped_keys().iter().find(|c| {
+                        c.from_key().charmap().code() == key && c.from_key().modmask() == state
+                    }) {
                         if !new.is_used() {
                             log::debug!(
                                 "{}:{} => {}:{} -- {}",
@@ -384,46 +342,36 @@ impl Daemon {
                                 "generated fake event".green().bold()
                             );
 
-                            for (code, modmask) in new
-                                .to_keys()
-                                .iter()
-                                .map(|k| (k.charmap().code(), k.modmask()))
-                                .collect::<Vec<_>>()
+                            for chord in new.to_keys().iter().map(Clone::clone).collect::<Vec<_>>()
                             {
-                                println!("CODE: {}, MASK: {}", code, modmask);
-
-                                // self.keyboard.make_modifier(modmask.mask(), true, ev.root)?;
-
-                                // self.keyboard
-                                //     .make_keypress_event(code, modmask, &ev)
-                                //     .context("xcape: failed to make key press event")?;
+                                // self.keyboard.make_keysequence(
+                                //     vec![chord.clone()],
+                                //     true,
+                                //     event.root,
+                                // )?;
 
                                 self.keyboard
-                                    .make_key_press_event(code, &event)
-                                    .context("xcape: failed to make key press event")?;
+                                    .make_key_press_event(chord.charmap().code(), &event)
+                                    .context("remap: failed to make key press event")?;
+                                self.remaps.mark_generated(chord.charmap().code());
 
-                                self.remaps.mark_generated(code);
+                                // self.keyboard.make_keysequence(
+                                //     vec![chord.clone()],
+                                //     false,
+                                //     event.root,
+                                // )?;
 
-                                ///
-                                // self.keyboard.make_modifier(modmask.mask(), false,
-                                // ev.root)?; self.keyboard
-                                //     .make_keyrelease_event(code, modmask, &ev)
-                                //     .context("xcape: failed to make key press event")?;
                                 self.keyboard
-                                    .make_key_release_event(code, &event)
-                                    .context("xcape: failed to make key release event")?;
+                                    .make_key_release_event(chord.charmap().code(), &event)
+                                    .context("remap: failed to make key release event")?;
 
-                                self.remaps.mark_generated(code);
+                                self.remaps.mark_generated(chord.charmap().code());
 
                                 self.keyboard.flush();
                             }
                         }
                     }
-                    let _ = self.remaps.mark_released(key);
-
-                    if let Some(chord) = Handler::handle_key_release(&event, &self.keyboard) {
-                        self.process_chords(chord, event.time, event.response_type, event.root)?;
-                    }
+                    self.remaps.mark_released(key);
 
                     Ok(remaining)
                 }
@@ -481,203 +429,5 @@ impl Daemon {
                 Ok(&data[32..])
             },
         }
-    }
-
-    /// Start the loop that gets daemonized. Monitor X11 key presses that are
-    /// prefixed by keys found within the configuration file
-    #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn daemonize1(&mut self) -> Result<()> {
-        // println!("BINDINGS: {:#?}", self.bindings);
-        // std::process::exit(1);
-
-        for chain in self.bindings.keys() {
-            self.keyboard.grab_key(chain.chords());
-        }
-
-        for remap in self.remaps.remapped_keys() {
-            self.keyboard.grab_key(&[remap.from_key().clone()]);
-        }
-
-        // if !self.xcape.is_empty() {
-        //     self.keyboard.xcape().run(&mut self.xcape)?;
-        // }
-
-        // self.keyboard.make_keysequence(vec![chord.clone()], true,ev.root)?;
-        // self.keyboard.make_keysequence(vec![chord.clone()], false,ev.root)?;
-
-        // self.keyboard.make_generic_event_no_window(xproto::KEY_PRESS_EVENT, 12);
-        // self.keyboard.make_generic_event_no_window(xproto::KEY_RELEASE_EVENT, 12);
-
-        loop {
-            self.keyboard.flush();
-
-            // let event = self.keyboard.wait_for_event()?;
-            while let Some(event) = self.keyboard.poll_for_event() {
-                match event {
-                    Event::KeyPress(ev) => {
-                        log::trace!("handling key press: {:#?}", event);
-                        let key = ev.detail;
-
-                        // If the key was an `xtest_fake_input`, skip
-                        if self.remaps.check_if_generated(key) {
-                            log::info!("ignore generated: {}", key);
-                            continue;
-                        }
-
-                        if self.remaps.mark_pressed(key).is_none() {
-                            self.remaps.set_modifier();
-                        }
-
-                        if let Some(chord) = Handler::handle_key_press(&ev, &self.keyboard) {
-                            self.process_chords(chord.clone(), ev.time, ev.response_type, ev.root)?;
-                        }
-
-                        // Necessary?
-                        self.keyboard.allow_events(xproto::KEY_PRESS_EVENT, false)?;
-                    },
-                    Event::KeyRelease(ev) => {
-                        log::trace!("handling key release: {:#?}", event);
-                        let key = ev.detail;
-
-                        // If the key was an `xtest_fake_input`, skip
-                        if self.remaps.check_if_generated(key) {
-                            log::info!("ignore generated: {}", key);
-                            continue;
-                        } else if let Some(new) = self
-                            .remaps
-                            .remapped_keys()
-                            .iter()
-                            .find(|c| c.from_key().charmap().code() == key)
-                        {
-                            if !new.is_used() {
-                                log::debug!(
-                                    "{}:{} => {}:{} -- {}",
-                                    new.from_key().charmap().utf().purple().bold(),
-                                    new.from_key().charmap().code(),
-                                    new.to_keys()
-                                        .iter()
-                                        .map(|c| c.charmap().utf())
-                                        .join(",")
-                                        .purple()
-                                        .bold(),
-                                    new.to_keys().iter().map(|c| c.charmap().code()).join(","),
-                                    "generated fake event".green().bold()
-                                );
-
-                                for (code, modmask) in new
-                                    .to_keys()
-                                    .iter()
-                                    .map(|k| (k.charmap().code(), k.modmask()))
-                                    .collect::<Vec<_>>()
-                                {
-                                    println!("CODE: {}, MASK: {}", code, modmask);
-
-                                    // self.keyboard.make_modifier(modmask.mask(), true, ev.root)?;
-
-                                    // self.keyboard
-                                    //     .make_keypress_event(code, modmask, &ev)
-                                    //     .context("xcape: failed to make key press event")?;
-
-                                    self.keyboard
-                                        .make_key_press_event(code, &ev)
-                                        .context("xcape: failed to make key press event")?;
-
-                                    self.remaps.mark_generated(code);
-
-                                    ///
-                                    // self.keyboard.make_modifier(modmask.mask(), false,
-                                    // ev.root)?; self.keyboard
-                                    //     .make_keyrelease_event(code, modmask, &ev)
-                                    //     .context("xcape: failed to make key press event")?;
-                                    self.keyboard
-                                        .make_key_release_event(code, &ev)
-                                        .context("xcape: failed to make key release event")?;
-
-                                    self.remaps.mark_generated(code);
-
-                                    self.keyboard.flush();
-                                }
-                            }
-                        }
-                        let _ = self.remaps.mark_released(key);
-
-                        if let Some(chord) = Handler::handle_key_release(&ev, &self.keyboard) {
-                            self.process_chords(chord, ev.time, ev.response_type, ev.root)?;
-                        }
-
-                        // Necessary?
-                        self.keyboard
-                            .allow_events(xproto::KEY_RELEASE_EVENT, false)?;
-                    },
-                    Event::ButtonPress(ev) => {
-                        log::trace!("handling button press: {:#?}", event);
-                        log::debug!(
-                            "{}::{}(code:{},mask:{})",
-                            "daemon".red().bold(),
-                            "ButtonPressEvent".purple().bold(),
-                            ev.detail,
-                            ev.state
-                        );
-                        self.remaps.set_modifier();
-                        self.remaps.set_mouse_held(true);
-
-                        // Necessary?
-                        self.keyboard
-                            .allow_events(xproto::BUTTON_PRESS_EVENT, false)?;
-                    },
-                    Event::ButtonRelease(ev) => {
-                        log::trace!("handling button release: {:#?}", event);
-                        log::debug!(
-                            "{}::{}(code:{},mask:{})",
-                            "daemon".red().bold(),
-                            "ButtonReleaseEvent".purple().bold(),
-                            ev.detail,
-                            ev.state
-                        );
-
-                        self.remaps.set_mouse_held(false);
-
-                        // Necessary?
-                        self.keyboard
-                            .allow_events(xproto::BUTTON_RELEASE_EVENT, false)?;
-                    },
-                    // ====
-                    // TODO: Match first event for these
-                    // ====
-                    Event::XkbNewKeyboardNotify(ev) => {
-                        log::info!(
-                            "`XkbNewKeyboardNotify` event; old_device:{} => new_device:{}",
-                            ev.old_device_id,
-                            ev.device_id
-                        );
-                        todo!(); // update_keymap
-                    },
-                    Event::XkbMapNotify(ev) => {
-                        log::info!("`XkbMapNotify` event; changed:{}", ev.changed);
-                        todo!(); // update_keymap
-                    },
-                    Event::XkbStateNotify(ev) => {
-                        log::info!(
-                            "`XkbStateNotify` event; mods:{}, changed:{}",
-                            ev.mods,
-                            ev.changed
-                        );
-                        todo!(); // update_state
-                    },
-                    //
-                    Event::Error(e) => {
-                        // self.keyboard.cleanup();
-                        log::info!("there was an error with the X-Server: {:?}", e);
-                    },
-                    _ => {
-                        log::trace!("{}:ignoring event: {:#?}", "bind".red().bold(), event);
-                    },
-                }
-            }
-        }
-
-        self.keyboard.cleanup();
-
-        Ok(())
     }
 }

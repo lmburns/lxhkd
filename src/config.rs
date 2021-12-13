@@ -61,11 +61,6 @@ pub(crate) struct GlobalSettings {
     /// The timeout between keypresses for regular bindings
     pub(crate) timeout: Option<u32>,
 
-    /// The amount of time a key can be held before `xcape` registers the
-    /// alterate binding
-    #[serde(alias = "xcape-timeout")]
-    pub(crate) xcape_timeout: Option<u64>,
-
     /// The delay in which keys begin to repeat
     #[serde(alias = "autorepeat-delay")]
     pub(crate) autorepeat_delay: Option<u16>,

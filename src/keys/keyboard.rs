@@ -14,6 +14,8 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use colored::{ColoredString, Colorize};
+use crossbeam_channel::Sender;
+use crossbeam_utils::thread as cthread;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -123,10 +125,12 @@ pub(crate) enum Error {
 /// State of the keyboard
 #[derive(Clone)]
 pub(crate) struct Keyboard {
-    /// Connection to the X-Server
+    /// Connection to the X-Server to control
     conn:                Arc<RustConnection>,
-    /// Connection to the X-Server to read and control data for `xcape`
-    xcape:               Xcape,
+    /// Connection to the X-Server to read
+    data_conn:           Arc<RustConnection>,
+    /// The generated ID to be used for `record_context`
+    id:                  u32,
     /// Root window.
     root:                xproto::Window,
     /// The characters, keysyms, etc making up the `Keyboard`
@@ -151,7 +155,6 @@ impl Keyboard {
     /// Construct a new instance of `Keyboard`
     pub(crate) fn new(
         conn: RustConnection,
-        ctrl_conn: RustConnection,
         data_conn: RustConnection,
         screen_num: usize,
         config: &Config,
@@ -198,6 +201,10 @@ impl Keyboard {
             );
         };
 
+        let id = conn
+            .generate_id()
+            .context("failed to generate an ID for `record`")?;
+
         // let k = conn.get_keyboard_mapping();
         // let k = conn.get_modifier_mapping();
         // let k = conn.change_keyboard_mapping();
@@ -206,7 +213,8 @@ impl Keyboard {
             min_keycode: screen.min_keycode,
             max_keycode: screen.max_keycode,
             conn: Arc::new(conn),
-            xcape: Xcape::new(ctrl_conn, data_conn, config)?,
+            data_conn: Arc::new(data_conn),
+            id,
             root,
             charmap: Vec::new(),
             device_id: 0,
@@ -222,12 +230,9 @@ impl Keyboard {
         Ok(keyboard)
     }
 
-    // ModDef
-    // KeyType
-
-    /// Return the `Xcape` object
-    pub(crate) fn xcape(&self) -> &Xcape {
-        &self.xcape
+    /// Return `id` to `record_create_context`
+    pub(crate) fn id(&self) -> u32 {
+        self.id
     }
 
     /// Return the root window
@@ -238,6 +243,11 @@ impl Keyboard {
     /// Return the connection to the X-Server
     pub(crate) fn connection(&self) -> &RustConnection {
         &self.conn
+    }
+
+    /// Return the data connection to the X-Server
+    pub(crate) fn data_connection(&self) -> &RustConnection {
+        &self.data_conn
     }
 
     /// Flush actions to the X-Server
@@ -1407,6 +1417,71 @@ impl Keyboard {
             .context("failed to send `xtest_fake_input`  (ButtonPress)")?
             .check()
             .context("failed to check `xtest_fake_input` (ButtonPress)")?;
+        Ok(())
+    }
+
+    // =============== RecordContext ==================
+
+    /// Generate the [`record`] configuration
+    /// ([`Range`](x11rb::protocol::record::Range))
+    pub(crate) fn gen_record_range() -> record::Range {
+        let empty = record::Range8 { first: 0, last: 0 };
+        let empty_ext =
+            record::ExtRange { major: empty, minor: record::Range16 { first: 0, last: 0 } };
+
+        record::Range {
+            core_requests:    empty,
+            core_replies:     empty,
+            ext_requests:     empty_ext,
+            ext_replies:      empty_ext,
+            delivered_events: empty,
+            device_events:    record::Range8 {
+                // Want notification of core X11 events from key press (2) to motion notify (6)
+                // KeyPress = 2, KeyRelease = 3, ButtonPress = 4, ButtonRelease = 5
+                first: xproto::KEY_PRESS_EVENT,
+                last:  xproto::BUTTON_RELEASE_EVENT,
+            },
+            errors:           empty, // core and ext errors
+            client_started:   false, // connection setup reply from server
+            client_died:      false, // notification of client disconnect
+        }
+    }
+
+    /// Generate the [`record`](x11rb::protocol::record) context
+    pub(crate) fn gen_record_ctx(&self) -> Result<()> {
+        let range = Self::gen_record_range();
+
+        self.conn
+            .record_create_context(self.id, 0, &[record::CS::ALL_CLIENTS.into()], &[range])
+            .context("failed to create record context")?
+            .check()
+            .context("failed to check result of creating record context")?;
+
+        // let spawn_action = |timeout: u64| {
+        //     cthread::scope(|scope| {
+        //         scope.spawn(|_| {
+        //             thread::sleep(Duration::from_secs(timeout));
+        //             self.conn
+        //                 .record_disable_context(self.id)
+        //                 .expect("failed to disable record context");
+        //             self.conn.sync().expect("failed to sync X-Server");
+        //         });
+        //     });
+        // };
+        //
+        // // Apply a timeout, if the user requested
+        // // Environment variable overrides configuration
+        // match env::var("LXHKD_XCAPE_TIMEOUT")
+        //     .ok()
+        //     .and_then(|v| v.parse::<u64>().ok())
+        // {
+        //     None => match self.timeout {
+        //         None => {},
+        //         Some(timeout) => spawn_action(timeout),
+        //     },
+        //     Some(timeout) => spawn_action(timeout),
+        // }
+
         Ok(())
     }
 

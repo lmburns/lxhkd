@@ -23,15 +23,19 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use std::{
     collections::BTreeMap,
+    convert::TryFrom,
     fmt,
     sync::{Arc, Mutex},
 };
 use x11rb::{
     connection::Connection,
+    cookie::RecordEnableContextCookie,
     protocol::{
+        record::{self, ConnectionExt as _, EnableContextReply},
         xproto::{self, Timestamp},
         Event,
     },
+    x11_utils::TryParse,
 };
 
 // TODO: Add layers/modes
@@ -285,10 +289,204 @@ impl Daemon {
         Ok(())
     }
 
+    pub(crate) fn daemonize(&mut self) -> Result<()> {
+        const RECORD_FROM_SERVER: u8 = 0;
+        const START_OF_DATA: u8 = 4;
+
+        self.keyboard
+            .gen_record_ctx()
+            .context("failed to generate record context")?;
+
+        for reply in self
+            .keyboard
+            .clone()
+            .data_connection()
+            .record_enable_context(self.keyboard.id())
+            .context("failed to get `record_enable_context`")?
+        {
+            let reply = reply.context("failed to get `record_enable_context` reply")?;
+
+            if reply.client_swapped {
+                log::warn!("byte swapped clients are unsupported");
+            } else if reply.category == RECORD_FROM_SERVER {
+                let mut remaining = &reply.data[..];
+                while !remaining.is_empty() {
+                    remaining = self.intercept(&reply.data)?;
+                }
+            } else if reply.category == START_OF_DATA {
+                log::info!("{} is {}", "daemon".red().bold(), "STARTING".green().bold());
+            } else {
+                log::warn!("`daemon` reply category is unknown: {:#?}", reply);
+            }
+        }
+
+        Ok(())
+    }
+
+    // This intercept function's name was taken directly from `xcape` itself.
+    // The outline of this function was also taken from the `x11rb` examples folder,
+    // and combined with `xcape-rs`
+    //
+    /// Intercept a single packet of data, returning the remaining
+    pub(crate) fn intercept<'a>(&mut self, data: &'a [u8]) -> Result<&'a [u8]> {
+        match data[0] {
+            xproto::KEY_PRESS_EVENT => {
+                let (event, remaining) = xproto::KeyPressEvent::try_parse(data)
+                    .context("failed to parse `KeyPressEvent`")?;
+                log::trace!("handling key press: {:#?}", event);
+                let key = event.detail;
+
+                // If the key was an `xtest_fake_input`, skip
+                if self.remaps.check_if_generated(key) {
+                    log::info!("ignore generated: {}", key);
+                    return Ok(remaining);
+                }
+
+                if self.remaps.mark_pressed(key).is_none() {
+                    self.remaps.set_modifier();
+                }
+
+                if let Some(chord) = Handler::handle_key_press(&event, &self.keyboard) {
+                    self.process_chords(chord, event.time, event.response_type, event.root)?;
+                }
+
+                Ok(remaining)
+            },
+            xproto::KEY_RELEASE_EVENT => {
+                let (event, remaining) = xproto::KeyReleaseEvent::try_parse(data)
+                    .context("failed to parse `KeyReleaseEvent`")?;
+                log::trace!("handling key release: {:#?}", event);
+                let key = event.detail;
+
+                // If the key was an `xtest_fake_input`, skip
+                if self.remaps.check_if_generated(key) {
+                    log::info!("ignore generated: {}", key);
+                    Ok(remaining)
+                } else {
+                    if let Some(new) = self
+                        .remaps
+                        .remapped_keys()
+                        .iter()
+                        .find(|c| c.from_key().charmap().code() == key)
+                    {
+                        if !new.is_used() {
+                            log::debug!(
+                                "{}:{} => {}:{} -- {}",
+                                new.from_key().charmap().utf().purple().bold(),
+                                new.from_key().charmap().code(),
+                                new.to_keys()
+                                    .iter()
+                                    .map(|c| c.charmap().utf())
+                                    .join(",")
+                                    .purple()
+                                    .bold(),
+                                new.to_keys().iter().map(|c| c.charmap().code()).join(","),
+                                "generated fake event".green().bold()
+                            );
+
+                            for (code, modmask) in new
+                                .to_keys()
+                                .iter()
+                                .map(|k| (k.charmap().code(), k.modmask()))
+                                .collect::<Vec<_>>()
+                            {
+                                println!("CODE: {}, MASK: {}", code, modmask);
+
+                                // self.keyboard.make_modifier(modmask.mask(), true, ev.root)?;
+
+                                // self.keyboard
+                                //     .make_keypress_event(code, modmask, &ev)
+                                //     .context("xcape: failed to make key press event")?;
+
+                                self.keyboard
+                                    .make_key_press_event(code, &event)
+                                    .context("xcape: failed to make key press event")?;
+
+                                self.remaps.mark_generated(code);
+
+                                ///
+                                // self.keyboard.make_modifier(modmask.mask(), false,
+                                // ev.root)?; self.keyboard
+                                //     .make_keyrelease_event(code, modmask, &ev)
+                                //     .context("xcape: failed to make key press event")?;
+                                self.keyboard
+                                    .make_key_release_event(code, &event)
+                                    .context("xcape: failed to make key release event")?;
+
+                                self.remaps.mark_generated(code);
+
+                                self.keyboard.flush();
+                            }
+                        }
+                    }
+                    let _ = self.remaps.mark_released(key);
+
+                    if let Some(chord) = Handler::handle_key_release(&event, &self.keyboard) {
+                        self.process_chords(chord, event.time, event.response_type, event.root)?;
+                    }
+
+                    Ok(remaining)
+                }
+            },
+            xproto::BUTTON_PRESS_EVENT => {
+                let (event, remaining) = xproto::ButtonPressEvent::try_parse(data)
+                    .context("failed to parse `ButtonPressEvent`")?;
+                log::trace!("handling button press: {:#?}", event);
+                log::debug!(
+                    "{}::{}(code:{},mask:{})",
+                    "daemon".red().bold(),
+                    "ButtonPressEvent".purple().bold(),
+                    event.detail,
+                    event.state
+                );
+                self.remaps.set_modifier();
+                self.remaps.set_mouse_held(true);
+
+                Ok(remaining)
+            },
+            xproto::BUTTON_RELEASE_EVENT => {
+                let (event, remaining) = xproto::ButtonReleaseEvent::try_parse(data)
+                    .context("failed to parse `ButtonReleaseEvent`")?;
+                log::trace!("handling button release: {:#?}", event);
+                log::debug!(
+                    "{}::{}(code:{},mask:{})",
+                    "daemon".red().bold(),
+                    "ButtonReleaseEvent".purple().bold(),
+                    event.detail,
+                    event.state
+                );
+
+                self.remaps.set_mouse_held(false);
+
+                Ok(remaining)
+            },
+            0 => {
+                // This is a reply, we compute its length as follows
+                let (length, _) = u32::try_parse(&data[4..])?;
+                let length = usize::try_from(length).unwrap() * 4 + 32;
+                log::error!(
+                    "{}::UnparsedReply({:?})",
+                    "daemon".red().bold(),
+                    &data[..length]
+                );
+                Ok(&data[length..])
+            },
+            _ => {
+                // Error or event always has length 32
+                log::error!(
+                    "{}::unparsed error/event: {:?}",
+                    "daemon".red().bold(),
+                    &data[..32]
+                );
+                Ok(&data[32..])
+            },
+        }
+    }
+
     /// Start the loop that gets daemonized. Monitor X11 key presses that are
     /// prefixed by keys found within the configuration file
     #[allow(clippy::unnecessary_wraps)]
-    pub(crate) fn daemonize(&mut self) -> Result<()> {
+    pub(crate) fn daemonize1(&mut self) -> Result<()> {
         // println!("BINDINGS: {:#?}", self.bindings);
         // std::process::exit(1);
 

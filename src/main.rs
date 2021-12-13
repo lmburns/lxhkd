@@ -196,13 +196,14 @@ fn main() -> Result<()> {
 
     // FIXME: Do I need 2 or 3 connections?
     // Bind/Map connection
-    let (conn, screen_num) = XUtility::setup_connection()?;
+    // let (conn, screen_num) = XUtility::setup_connection()?;
+
     // Xcape control connection
-    let (ctrl_conn, _) = XUtility::setup_connection()?;
+    let (ctrl_conn, screen_num) = XUtility::setup_connection()?;
     // Xcape data read connection
     let (data_conn, _) = XUtility::setup_connection()?;
 
-    let keyboard = Keyboard::new(conn, ctrl_conn, data_conn, screen_num, &config)?;
+    let keyboard = Keyboard::new(ctrl_conn, data_conn, screen_num, &config)?;
 
     if args.keysyms {
         keyboard.list_keysyms()?;

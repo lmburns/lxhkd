@@ -223,32 +223,6 @@ impl ModifierMask {
 
     // TODO: has_none, has_any, has_all
 }
-// AltMask        = (1 << 16),
-// MetaMask       = (1 << 17),
-// SuperMask      = (1 << 18),
-// HyperMask      = (1 << 19),
-// ModeSwitchMask = (1 << 20),
-// NumLockMask    = (1 << 21),
-// ScrollLockMask = (1 << 22),
-// NoMask         = (1 << 25),
-
-// Hotkey_Flag_Alt = (1 << 0),
-// Hotkey_Flag_LAlt = (1 << 1),
-// Hotkey_Flag_RAlt = (1 << 2),
-// Hotkey_Flag_Shift = (1 << 3),
-// Hotkey_Flag_LShift = (1 << 4),
-// Hotkey_Flag_RShift = (1 << 5),
-// Hotkey_Flag_Cmd = (1 << 6),
-// Hotkey_Flag_LCmd = (1 << 7),
-// Hotkey_Flag_RCmd = (1 << 8),
-// Hotkey_Flag_Control = (1 << 9),
-// Hotkey_Flag_LControl = (1 << 10),
-// Hotkey_Flag_RControl = (1 << 11),
-// Hotkey_Flag_Fn = (1 << 12),
-// Hotkey_Flag_Passthrough = (1 << 13),
-// Hotkey_Flag_Hyper = (Hotkey_Flag_Cmd | Hotkey_Flag_Alt | Hotkey_Flag_Shift |
-//                      Hotkey_Flag_Control),
-// Hotkey_Flag_Meh = (Hotkey_Flag_Control | Hotkey_Flag_Shift | Hotkey_Flag_Alt)
 
 impl From<u16> for ModifierMask {
     fn from(mask: u16) -> ModifierMask {

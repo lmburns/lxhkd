@@ -224,9 +224,9 @@ impl Daemon {
                     should_clear = true;
                     break;
                 },
-                /*     _ => {},
-                 * }
-                 * }, */
+                //     _ => {},
+                // }
+                // },
             }
         }
 
@@ -361,9 +361,20 @@ impl Daemon {
                                 //     event.root,
                                 // )?;
 
-                                self.keyboard
-                                    .make_key_release_event(chord.charmap().code(), &event)
-                                    .context("remap: failed to make key release event")?;
+                                // self.keyboard
+                                //     .make_modifier(modmask.mask(), false, event.root)?;
+
+                                // self.keyboard
+                                //     .send_key_release_event(
+                                //         chord.charmap().code(),
+                                //         chord.modmask().mask(),
+                                //         event.root,
+                                //     )
+                                //     .context("remap: failed to make key press event")?;
+
+                                // self.keyboard
+                                //     .make_key_release_event(code, &event)
+                                //     .context("remap: failed to make key release event")?;
 
                                 self.remaps.mark_generated(chord.charmap().code());
 
@@ -371,7 +382,7 @@ impl Daemon {
                             }
                         }
                     }
-                    self.remaps.mark_released(key);
+                    let _ = self.remaps.mark_released(key);
 
                     Ok(remaining)
                 }

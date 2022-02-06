@@ -6,11 +6,7 @@ use super::{
     keys::{self, CharacterMap, ModifierMask, XButton, XKeyCode},
     keysym::{KeysymHash, XKeysym},
 };
-use crate::{
-    config::Config,
-    lxhkd_fatal,
-    types::{Xid, KEYSYMS_PER_KEYCODE},
-};
+use crate::{config::Config, lxhkd_fatal};
 use anyhow::{anyhow, Context, Result};
 use colored::{ColoredString, Colorize};
 use crossbeam_channel::Sender;
@@ -79,6 +75,8 @@ use x11rb::{
 // DeviceLedInfo
 // GetDeviceInfoReply
 // GetNamesReply
+
+pub(crate) type Xid = u8;
 
 // =================== Error ======================
 
@@ -154,7 +152,7 @@ pub(crate) struct Keyboard {
 #[allow(clippy::declare_interior_mutable_const)]
 pub(crate) const MODIFIERS: Lazy<Vec<(String, u32)>> = Lazy::new(|| {
     let hash = KeysymHash::HASH;
-    let modifiers = &[
+    [
         "Control_L",
         "Alt_L",
         "Shift_L",
@@ -163,31 +161,27 @@ pub(crate) const MODIFIERS: Lazy<Vec<(String, u32)>> = Lazy::new(|| {
         "Meta_L",
         "Caps_Lock",
         "Num_Lock",
-    ];
-
-    modifiers
-        .iter()
-        .map(|m| ((*m).to_string(), hash.get_keysym_code_from_str(m).unwrap()))
-        .collect::<Vec<_>>()
+    ]
+    .iter()
+    .map(|m| ((*m).to_string(), hash.get_keysym_code_from_str(m).unwrap()))
+    .collect::<Vec<_>>()
 });
 
 /// Modifier strings and their keycodes
 #[allow(clippy::declare_interior_mutable_const)]
 pub(crate) const HELD_MODIFIERS: Lazy<Vec<(String, u32)>> = Lazy::new(|| {
     let hash = KeysymHash::HASH;
-    let modifiers = &[
+    [
         "Control_L",
         "Alt_L",
         "Shift_L",
         "Super_L",
         "Hyper_L",
         "Meta_L",
-    ];
-
-    modifiers
-        .iter()
-        .map(|m| ((*m).to_string(), hash.get_keysym_code_from_str(m).unwrap()))
-        .collect::<Vec<_>>()
+    ]
+    .iter()
+    .map(|m| ((*m).to_string(), hash.get_keysym_code_from_str(m).unwrap()))
+    .collect::<Vec<_>>()
 });
 
 impl Keyboard {

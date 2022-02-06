@@ -86,7 +86,6 @@ mod config;
 mod keys;
 mod macros;
 mod parse;
-mod types;
 mod utils;
 mod xcb_utils;
 

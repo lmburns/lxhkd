@@ -1,5 +1,13 @@
 ## LinuX Hotkey Daemon
 
+### Note:
+
+This project needs to be rewritten. I think I have figured out that the same program is unable to monitor the same X11 events and convert some to an action (i.e., a remap) and others to a program like `xcape`. If both of them weren't attempted to be implemented, then this project could be a much smaller code base.
+
+### Future
+
+The goal is to use pieces of this project to create something similar to `sxhkd` but better, and also create an X11 window manager. For the time being, this project is on **hold**.
+
 The project aims to combine multiple programs into one
     - [`sxhkd`](https://github.com/baskerville/sxhkd.git)
         - Mapping to shell commands (i.e., launching a terminal)

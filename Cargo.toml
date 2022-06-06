@@ -30,7 +30,7 @@ log = "0.4.14"
 flexi_logger = { version = "0.18", default_features = false, features = ["colors"] }
 better-panic = "0.2.0"
 
-regex = "1.5.4"
+regex = "1.5.5"
 itertools = "0.10.1"
 
 # Keysyms

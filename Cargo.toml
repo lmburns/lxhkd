@@ -50,7 +50,7 @@ chrono = "0.4.19"
 
 # rayon = "1.5.1"
 crossbeam-channel = "0.5.1"
-crossbeam-utils = "0.8.5"
+crossbeam-utils = "0.8.7"
 
 [dev-dependencies]
 # pretty_assertions = "0.7.1"

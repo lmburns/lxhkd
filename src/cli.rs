@@ -1,15 +1,7 @@
 //! The command line arguments
 
 use crate::utils::wants_color;
-use clap::{
-    crate_description,
-    crate_version,
-    AppSettings,
-    ArgSettings,
-    Parser,
-    Subcommand,
-    ValueHint,
-};
+use clap::{crate_description, crate_version, AppSettings, ArgSettings, Parser, Subcommand, ValueHint};
 use once_cell::sync::Lazy;
 use std::{env, fs, path::PathBuf};
 
@@ -22,10 +14,10 @@ use std::{env, fs, path::PathBuf};
     override_usage =  <String as AsRef<str>>::as_ref(&OVERRIDE_HELP),
     max_term_width = 100,
     color = clap::ColorChoice::Auto,
-    global_setting = AppSettings::DisableHelpSubcommand,
     global_setting = AppSettings::DeriveDisplayOrder,
-    global_setting = AppSettings::HidePossibleValues,
-    global_setting = AppSettings::InferSubcommands,
+    disable_help_subcommand = true,
+    hide_possible_values = true,
+    infer_subcommands = true,
 )]
 pub(crate) struct Opts {
     /// Display debugging messages on various levels
@@ -35,10 +27,10 @@ pub(crate) struct Opts {
         global = true,
         parse(from_occurrences),
         long_help = "
-        Set the verbosity level of the program. There are 2 extra levels after the default (INFO). \
-                     If `-v` is used, DEBUG messages are displayed, and if `-vv` is used TRACE \
-                     messages are displayed. The verbosity can also be set with the `LXHKD_LOG` \
-                     environment variable"
+        Set the verbosity level of the program. There are 2 extra levels after the default (INFO). If \
+                     `-v` is used, DEBUG messages are displayed, and if `-vv` is used TRACE messages \
+                     are displayed. The verbosity can also be set with the `LXHKD_LOG` environment \
+                     variable"
     )]
     pub(crate) verbose: u8,
 
@@ -77,9 +69,8 @@ pub(crate) struct Opts {
         takes_value = false,
         conflicts_with = "kill",
         long_help = "\
-        List the available keysyms that one can use for mapping. If this option is used, it is the \
-                     only option that should be used and will exit the program after display the \
-                     keysyms
+        List the available keysyms that one can use for mapping. If this option is used, it is the only \
+                     option that should be used and will exit the program after display the keysyms
         "
     )]
     pub(crate) keysyms: bool,
@@ -93,9 +84,9 @@ pub(crate) struct Opts {
         takes_value = false,
         long_help = "\
         Kill the daemonized process if it is currently running. If a PID file was specified on the \
-                     command line when the process was first daemonized, that same PID file must \
-                     be specified again for the process to be killed. Otherwise, the PID file \
-                     will be written to and read from a default location"
+                     command line when the process was first daemonized, that same PID file must be \
+                     specified again for the process to be killed. Otherwise, the PID file will be \
+                     written to and read from a default location"
     )]
     pub(crate) kill: bool,
 
@@ -113,12 +104,7 @@ pub(crate) struct Opts {
     pub(crate) daemonize: bool,
 
     /// Create a temporary file to test keybindings
-    #[clap(
-        name = "temporary",
-        long = "temporary",
-        short = 't',
-        takes_value = false
-    )]
+    #[clap(name = "temporary", long = "temporary", short = 't', takes_value = false)]
     pub(crate) temporary: bool,
 
     /// Specify a PID file. A default PID file should be used most of the time
@@ -169,15 +155,7 @@ const RES: &str = "\x1b[0m";
 /// Colored options used in the output of `--help`
 pub(crate) static APP_ABOUT: Lazy<String> = Lazy::new(|| {
     wants_color()
-        .then(|| {
-            format!(
-                "{}DESCRIPTION: {}{}{}",
-                YELLOW,
-                GREEN,
-                crate_description!(),
-                RES
-            )
-        })
+        .then(|| format!("{}DESCRIPTION: {}{}{}", YELLOW, GREEN, crate_description!(), RES))
         .unwrap_or_else(|| crate_description!().to_string())
 });
 
@@ -202,9 +180,7 @@ pub(crate) static AFTER_HELP: Lazy<String> = Lazy::new(|| {
                 BRED, RES, GREEN, RES
             )
         })
-        .unwrap_or_else(|| {
-            String::from("See lxhkd --help for longer explanations of some options.")
-        })
+        .unwrap_or_else(|| String::from("See lxhkd --help for longer explanations of some options."))
 });
 
 /// Colorized message about the app's authors

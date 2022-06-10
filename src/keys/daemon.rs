@@ -92,13 +92,11 @@ impl Daemon {
                 let mut tokenized = line.tokenize();
                 tokenized.parse_tokens()?;
 
-                if let Some(mut chain) = tokenized.convert_to_chain(self.keyboard.charmap(), false)
-                {
+                if let Some(mut chain) = tokenized.convert_to_chain(self.keyboard.charmap(), false) {
                     let action = bindings
                         .get_index(idx - 1)
                         .context(
-                            "failed to get valid index of item in configuration's `Bindings` \
-                             section",
+                            "failed to get valid index of item in configuration's `Bindings` section",
                         )?
                         .1;
 
@@ -126,14 +124,10 @@ impl Daemon {
                 let mut tokenized = line.tokenize();
                 tokenized.parse_tokens()?;
 
-                if let Some(mut chain_from) =
-                    tokenized.convert_to_chain(self.keyboard.charmap(), false)
-                {
+                if let Some(mut chain_from) = tokenized.convert_to_chain(self.keyboard.charmap(), false) {
                     let action_to = remaps
                         .get_index(idx - 1)
-                        .context(
-                            "failed to get valid index of item in configuration's `Remaps` section",
-                        )?
+                        .context("failed to get valid index of item in configuration's `Remaps` section")?
                         .1;
 
                     log::trace!("{}:action: {}", "remaps".red().bold(), action_to);
@@ -141,8 +135,7 @@ impl Daemon {
                     let line = Line::new_plus(action_to, idx);
                     let mut tokenized_to = line.tokenize();
                     tokenized_to.parse_tokens()?;
-                    if let Some(chain_to) =
-                        tokenized_to.convert_to_chain(self.keyboard.charmap(), false)
+                    if let Some(chain_to) = tokenized_to.convert_to_chain(self.keyboard.charmap(), false)
                     {
                         parsed_remaps.insert(
                             RemapKeyState::from_chains(&chain_from, &chain_to)
@@ -285,8 +278,8 @@ impl Daemon {
     pub(crate) fn intercept<'a>(&mut self, data: &'a [u8]) -> Result<&'a [u8]> {
         match data[0] {
             xproto::KEY_PRESS_EVENT => {
-                let (event, remaining) = xproto::KeyPressEvent::try_parse(data)
-                    .context("failed to parse `KeyPressEvent`")?;
+                let (event, remaining) =
+                    xproto::KeyPressEvent::try_parse(data).context("failed to parse `KeyPressEvent`")?;
                 log::trace!("handling key press: {:#?}", event);
 
                 let key = event.detail;
@@ -324,9 +317,11 @@ impl Daemon {
                         self.process_chords(chord, event.time, event.response_type, event.root)?;
                     }
 
-                    if let Some(new) = self.remaps.remapped_keys().iter().find(|c| {
-                        c.from_key().charmap().code() == key && c.from_key().modmask() == state
-                    }) {
+                    if let Some(new) =
+                        self.remaps.remapped_keys().iter().find(|c| {
+                            c.from_key().charmap().code() == key && c.from_key().modmask() == state
+                        })
+                    {
                         if !new.is_used() {
                             log::debug!(
                                 "{}:{} => {}:{} -- {}",
@@ -342,8 +337,7 @@ impl Daemon {
                                 "generated fake event".green().bold()
                             );
 
-                            for chord in new.to_keys().iter().map(Clone::clone).collect::<Vec<_>>()
-                            {
+                            for chord in new.to_keys().iter().map(Clone::clone).collect::<Vec<_>>() {
                                 // self.keyboard.make_keysequence(
                                 //     vec![chord.clone()],
                                 //     true,
@@ -423,11 +417,7 @@ impl Daemon {
                 // This is a reply, we compute its length as follows
                 let (length, _) = u32::try_parse(&data[4..])?;
                 let length = usize::try_from(length).unwrap() * 4 + 32;
-                log::error!(
-                    "{}::UnparsedReply({:?})",
-                    "daemon".red().bold(),
-                    &data[..length]
-                );
+                log::error!("{}::UnparsedReply({:?})", "daemon".red().bold(), &data[..length]);
                 Ok(&data[length..])
             },
             _ => {

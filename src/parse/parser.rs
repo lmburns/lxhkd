@@ -271,7 +271,10 @@ impl<'a> Line<'a> {
             }
         }
 
-        TokenizedLine { line: self.clone(), tokenized: all_res }
+        TokenizedLine {
+            line:      self.clone(),
+            tokenized: all_res,
+        }
     }
 }
 
@@ -307,8 +310,7 @@ const MODIFIER_STR: &[&str] = &[
 //     Lazy::new(||
 // Regex::new(r"(?m)^(([0-9]+)-([0-9]+))|(([a-z]+)-([a-z]+))$").unwrap());
 
-pub(crate) static MOD_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(&MODIFIER_STR.join("|")).unwrap());
+pub(crate) static MOD_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(&MODIFIER_STR.join("|")).unwrap());
 static MOUSE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"mouse([0-9]+)").unwrap());
 
 // =============== TokenizedLine ==================
@@ -353,10 +355,7 @@ impl<'a> TokenizedLine<'a> {
             .fold(Vec::new(), |mut acc, c| {
                 c.iter().for_each(|i| acc.push(*i));
                 acc
-            })
-            .iter()
-            .copied()
-            .collect::<Vec<_>>();
+            });
 
         split
     }
@@ -447,11 +446,7 @@ impl<'a> TokenizedLine<'a> {
                 Token::Modifier(modifier) => {
                     let mapped = Self::map_modifiers(charmaps, modifier);
                     if let Some(charmap) = CharacterMap::charmap_from_keysym_utf(charmaps, mapped) {
-                        log::debug!(
-                            "found `modifier`: {}\n{:#?}",
-                            mapped.yellow().bold(),
-                            charmap
-                        );
+                        log::debug!("found `modifier`: {}\n{:#?}", mapped.yellow().bold(), charmap);
 
                         // Skip pushing modifier keys, since the events only register masks
                         modmask.combine_u16(charmap.modmask());
@@ -473,11 +468,7 @@ impl<'a> TokenizedLine<'a> {
                     if let Some(mut charmap) =
                         CharacterMap::charmap_from_keysym_utf(charmaps, &ch.to_string())
                     {
-                        log::debug!(
-                            "found `char`: {}\n{:#?}",
-                            ch.to_string().yellow().bold(),
-                            charmap
-                        );
+                        log::debug!("found `char`: {}\n{:#?}", ch.to_string().yellow().bold(), charmap);
 
                         // TODO: Confirm: Convert uppercase characters to shift + lowercase
                         // If the character is a captital letter, then change the character
@@ -506,8 +497,7 @@ impl<'a> TokenizedLine<'a> {
                                     charmap.utf().green().bold()
                                 );
                                 log::warn!(
-                                    "instead of using <modifier + CAP>; use <modifier + shift + \
-                                     lower>"
+                                    "instead of using <modifier + CAP>; use <modifier + shift + lower>"
                                 );
                             }
                         }
@@ -562,11 +552,7 @@ impl<'a> TokenizedLine<'a> {
                 },
                 Token::Mouse(n) => {
                     let charmap = CharacterMap::blank_charmap(&format!("mouse{}", n));
-                    log::debug!(
-                        "found `mouse`: {}\n{:#?}",
-                        n.to_string().yellow().bold(),
-                        charmap
-                    );
+                    log::debug!("found `mouse`: {}\n{:#?}", n.to_string().yellow().bold(), charmap);
                     chords.push(Chord::new(
                         &charmap,
                         modmask.mask(),
@@ -626,8 +612,7 @@ impl<'a> TokenizedLine<'a> {
                             log::trace!("Found {}({})", "Token::Mouse".red().bold(), text);
                             self.tokenized[vec_idx][tok_idx] =
                                 Token::Mouse(text.replace("mouse", "").parse::<u8>().context(
-                                    "mouse buttons are defined by 'mouseN' where 'N' is a number \
-                                     1-5",
+                                    "mouse buttons are defined by 'mouseN' where 'N' is a number 1-5",
                                 )?);
                         } else if text.len() == 1 {
                             let char = text
@@ -638,11 +623,7 @@ impl<'a> TokenizedLine<'a> {
                                 log::debug!("Found {}({})", "Token::Char".red().bold(), text);
                                 self.tokenized[vec_idx][tok_idx] = Token::Char(char);
                             } else {
-                                log::info!(
-                                    "Unkown {}({})",
-                                    "Token::UnknownChar".red().bold(),
-                                    text
-                                );
+                                log::info!("Unkown {}({})", "Token::UnknownChar".red().bold(), text);
                                 self.tokenized[vec_idx][tok_idx] = Token::UnknownChar(char);
                             }
                         },
@@ -672,9 +653,8 @@ impl<'a> TokenizedLine<'a> {
                         }
                         .with_context(|| {
                             format!(
-                                "a Keysym code was indicated in the configuration file, but {} is \
-                                 not a number. Either remove the brackets '[]' or use a valid \
-                                 Keysym code",
+                                "a Keysym code was indicated in the configuration file, but {} is not a \
+                                 number. Either remove the brackets '[]' or use a valid Keysym code",
                                 keysym_code.red().bold()
                             )
                         })?;
@@ -700,8 +680,7 @@ impl<'a> TokenizedLine<'a> {
                             self.line.to_string().purple().bold(),
                             keysym_code.yellow().bold()
                         );
-                        self.tokenized[vec_idx][tok_idx + 1] =
-                            Token::Unknown(keysym_code.to_string());
+                        self.tokenized[vec_idx][tok_idx + 1] = Token::Unknown(keysym_code.to_string());
                     }
                 }
             }
@@ -759,8 +738,8 @@ impl<'a> TokenizedLine<'a> {
                         }
                     }
                     log::warn!(
-                        "invalid option found in configuration: {}\n{} may only be single 'char's \
-                         or digits. For example: {{a,b,c}}",
+                        "invalid option found in configuration: {}\n{} may only be single 'char's or \
+                         digits. For example: {{a,b,c}}",
                         "Options".green().bold(),
                         self.line.vector[vec_idx].to_string().red().bold()
                     );
@@ -884,9 +863,7 @@ mod tests {
         let line = Line::new_plus("abc", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::Text(String::from(
-            "abc"
-        ))]]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Text(String::from("abc"))]]);
         Ok(())
     }
 
@@ -895,9 +872,9 @@ mod tests {
         let line = Line::new_plus("super", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
-            String::from("super")
-        )]]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(String::from(
+            "super"
+        ))]]);
         Ok(())
     }
 
@@ -906,9 +883,9 @@ mod tests {
         let line = Line::new_plus("lsuper", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
-            String::from("lsuper")
-        )]]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(String::from(
+            "lsuper"
+        ))]]);
         Ok(())
     }
 
@@ -917,9 +894,9 @@ mod tests {
         let line = Line::new_plus("Hyper_L", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
-            String::from("Hyper_L")
-        )]]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(String::from(
+            "Hyper_L"
+        ))]]);
         Ok(())
     }
 
@@ -1052,9 +1029,7 @@ mod tests {
         let line = Line::new_plus("{a-b}", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec![
-            'a', 'b'
-        ])]]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec!['a', 'b'])]]);
         Ok(())
     }
 
@@ -1063,9 +1038,7 @@ mod tests {
         let line = Line::new_plus("{a - b}", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec![
-            'a', 'b'
-        ])]]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::RangeGroup(vec!['a', 'b'])]]);
         Ok(())
     }
 
@@ -1150,10 +1123,7 @@ mod tests {
         let line = Line::new_plus("~mouse3", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![
-            Token::Release,
-            Token::Mouse(3)
-        ],]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Release, Token::Mouse(3)],]);
         Ok(())
     }
 
@@ -1162,9 +1132,9 @@ mod tests {
         let line = Line::new_plus("[0xffed]", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
-            String::from("Hyper_L")
-        ),],]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(String::from(
+            "Hyper_L"
+        )),],]);
         Ok(())
     }
 
@@ -1173,9 +1143,9 @@ mod tests {
         let line = Line::new_plus("[65517]", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(
-            String::from("Hyper_L")
-        ),],]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Modifier(String::from(
+            "Hyper_L"
+        )),],]);
         Ok(())
     }
 
@@ -1210,10 +1180,7 @@ mod tests {
         let line = Line::new_plus("~a", 1);
         let mut tokenized = line.tokenize();
         tokenized.parse_tokens()?;
-        assert_eq!(tokenized.tokenized, vec![vec![
-            Token::Release,
-            Token::Char('a')
-        ],]);
+        assert_eq!(tokenized.tokenized, vec![vec![Token::Release, Token::Char('a')],]);
         Ok(())
     }
 

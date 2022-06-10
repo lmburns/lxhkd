@@ -31,6 +31,11 @@ use std::{
     path::PathBuf,
     thread,
 };
+use time::{format_description::FormatItem, macros::format_description};
+
+// How can I use the updated flexi_logger with a static string?
+const TIMESTAMP_FMT: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
 /// Shorter way of testing if the user wants color for the output of `--help`
 pub(crate) fn wants_color() -> bool {
@@ -49,11 +54,12 @@ pub(crate) fn initialize_logging(config: &Config, args: &Opts) -> Result<PathBuf
     ) -> Result<(), io::Error> {
         let level = record.level();
         // style(level, now.now().format("%d %H:%M:%S")),
+
         write!(
             w,
             "{:<5} [{}:{}]: {}",
-            style(level, level),
-            style(Level::Trace, record.file().unwrap_or("<unnamed>")),
+            style(level).paint(level.to_string()),
+            style(Level::Trace).paint(record.file().unwrap_or("<unnamed>")),
             record.line().unwrap_or(0),
             &record.args() // style(level, &record.args())
         )
@@ -70,14 +76,12 @@ pub(crate) fn initialize_logging(config: &Config, args: &Opts) -> Result<PathBuf
         write!(
             w,
             "[{:>}] {:<5} [{}:{}]: {}",
-            now.now().format("%Y-%m-%d %H:%M:%S"),
+            now.format(TIMESTAMP_FMT),
             record.level(),
             record.file().unwrap_or("<unnamed>"),
             record.line().unwrap_or(0),
-            String::from_utf8(strip_ansi_escapes::strip(
-                &record.args().to_string().as_bytes()
-            )?)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+            String::from_utf8(strip_ansi_escapes::strip(&record.args().to_string().as_bytes())?)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
         )
     }
 
@@ -112,13 +116,11 @@ pub(crate) fn initialize_logging(config: &Config, args: &Opts) -> Result<PathBuf
     // .create_symlink()
     // .format(colored_format)
     let mut logger =
-        Logger::try_with_str(
-            env::var("LXHKD_LOG").unwrap_or_else(|_| match args.verbose {
-                1 => String::from("debug"),
-                2 => String::from("trace"),
-                _ => String::from("info"),
-            }),
-        )?
+        Logger::try_with_str(env::var("LXHKD_LOG").unwrap_or_else(|_| match args.verbose {
+            1 => String::from("debug"),
+            2 => String::from("trace"),
+            _ => String::from("info"),
+        }))?
         .write_mode(WriteMode::BufferAndFlush)
         .adaptive_format_for_stderr(AdaptiveFormat::Custom(uncolored_format, colored_format))
         .set_palette(String::from("9;11;14;5;13"));
@@ -131,11 +133,7 @@ pub(crate) fn initialize_logging(config: &Config, args: &Opts) -> Result<PathBuf
                 Naming::Numbers,
                 Cleanup::KeepLogFiles(2),
             )
-            .log_to_file(
-                FileSpec::default()
-                    .basename(crate_name!())
-                    .directory(&log_dir),
-            )
+            .log_to_file(FileSpec::default().basename(crate_name!()).directory(&log_dir))
             .format_for_files(uncolored_format);
     }
 

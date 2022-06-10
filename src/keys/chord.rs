@@ -80,12 +80,7 @@ impl Ord for Chord {
 
 impl Chord {
     /// Create a new `Chord`
-    pub(crate) fn new(
-        charmap: &CharacterMap,
-        modmask: u16,
-        button: ButtonCode,
-        event_type: u8,
-    ) -> Self {
+    pub(crate) fn new(charmap: &CharacterMap, modmask: u16, button: ButtonCode, event_type: u8) -> Self {
         let mut mask = ModifierMask::new(modmask);
         mask.filter_ignored();
 

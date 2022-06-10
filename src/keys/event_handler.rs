@@ -28,9 +28,7 @@ impl Handler {
                 // println!("PRESS EVENT; {:#?}", event);
 
                 let charmap = CharacterMap::charmap_from_keycode(keyboard.charmap(), keycode)
-                    .with_context(|| {
-                        format!("failed to find a `CharacterMap` for keycode={}", keycode)
-                    })
+                    .with_context(|| format!("failed to find a `CharacterMap` for keycode={}", keycode))
                     .ok()?;
 
                 Some(Chord::new(&charmap, mask, 0.into(), event.response_type))
@@ -52,10 +50,7 @@ impl Handler {
         }
     }
 
-    pub(crate) fn handle_key_release(
-        event: &KeyReleaseEvent,
-        keyboard: &Keyboard,
-    ) -> Option<Chord> {
+    pub(crate) fn handle_key_release(event: &KeyReleaseEvent, keyboard: &Keyboard) -> Option<Chord> {
         let keycode = event.detail;
         let mask = event.state;
 
@@ -78,9 +73,7 @@ impl Handler {
                 // println!("RELEASE EVENT; {:#?}", event);
 
                 let charmap = CharacterMap::charmap_from_keycode(keyboard.charmap(), keycode)
-                    .with_context(|| {
-                        format!("failed to find a `CharacterMap` for keycode={}", keycode)
-                    })
+                    .with_context(|| format!("failed to find a `CharacterMap` for keycode={}", keycode))
                     .ok()?;
 
                 Some(Chord::new(&charmap, mask, 0.into(), event.response_type))

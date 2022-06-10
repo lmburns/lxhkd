@@ -109,88 +109,43 @@ impl KeysymHash {
             Unicode::new(xkb::KEY_BackSpace, '\u{8}'),
         ); // 0xFF08
         hash.insert(String::from("Tab"), Unicode::new(xkb::KEY_Tab, '\u{9}')); // 0xFF09
-        hash.insert(
-            String::from("Linefeed"),
-            Unicode::new(xkb::KEY_Linefeed, '\u{a}'),
-        ); // 0xFF0A
+        hash.insert(String::from("Linefeed"), Unicode::new(xkb::KEY_Linefeed, '\u{a}')); // 0xFF0A
         hash.insert(String::from("Clear"), Unicode::new(xkb::KEY_Clear, '\u{b}')); // 0xFF0B
-        hash.insert(
-            String::from("Return"),
-            Unicode::new(xkb::KEY_Return, '\u{d}'),
-        ); // 0xFF0D
-        hash.insert(
-            String::from("Pause"),
-            Unicode::new(xkb::KEY_Pause, '\u{13}'),
-        ); // 0xFF13
+        hash.insert(String::from("Return"), Unicode::new(xkb::KEY_Return, '\u{d}')); // 0xFF0D
+        hash.insert(String::from("Pause"), Unicode::new(xkb::KEY_Pause, '\u{13}')); // 0xFF13
         hash.insert(
             String::from("Scroll_Lock"),
             Unicode::new(xkb::KEY_Scroll_Lock, '\u{14}'),
         ); // 0xFF14
-        hash.insert(
-            String::from("Sys_Req"),
-            Unicode::new(xkb::KEY_Sys_Req, '\u{15}'),
-        ); // 0xFF15
-        hash.insert(
-            String::from("Escape"),
-            Unicode::new(xkb::KEY_Escape, '\u{1b}'),
-        ); // 0xFF1B
-        hash.insert(
-            String::from("Delete"),
-            Unicode::new(xkb::KEY_Delete, '\u{0}'),
-        ); // 0xFFFF
+        hash.insert(String::from("Sys_Req"), Unicode::new(xkb::KEY_Sys_Req, '\u{15}')); // 0xFF15
+        hash.insert(String::from("Escape"), Unicode::new(xkb::KEY_Escape, '\u{1b}')); // 0xFF1B
+        hash.insert(String::from("Delete"), Unicode::new(xkb::KEY_Delete, '\u{0}')); // 0xFFFF
         hash.insert(
             String::from("Multi_key"),
             Unicode::new(xkb::KEY_Multi_key, '\u{0}'),
         ); // 0xFF20
         hash.insert(String::from("Kanji"), Unicode::new(xkb::KEY_Kanji, '\u{0}')); // 0xFF21
-        hash.insert(
-            String::from("Muhenkan"),
-            Unicode::new(xkb::KEY_Muhenkan, '\u{0}'),
-        ); // 0xFF22
+        hash.insert(String::from("Muhenkan"), Unicode::new(xkb::KEY_Muhenkan, '\u{0}')); // 0xFF22
         hash.insert(
             String::from("Henkan_Mode"),
             Unicode::new(xkb::KEY_Henkan_Mode, '\u{0}'),
         ); // 0xFF23
-        hash.insert(
-            String::from("Henkan"),
-            Unicode::new(xkb::KEY_Henkan, '\u{0}'),
-        ); // 0xFF23
-        hash.insert(
-            String::from("Romaji"),
-            Unicode::new(xkb::KEY_Romaji, '\u{0}'),
-        ); // 0xFF24
-        hash.insert(
-            String::from("Hiragana"),
-            Unicode::new(xkb::KEY_Hiragana, '\u{0}'),
-        ); // 0xFF25
-        hash.insert(
-            String::from("Katakana"),
-            Unicode::new(xkb::KEY_Katakana, '\u{0}'),
-        ); // 0xFF26
+        hash.insert(String::from("Henkan"), Unicode::new(xkb::KEY_Henkan, '\u{0}')); // 0xFF23
+        hash.insert(String::from("Romaji"), Unicode::new(xkb::KEY_Romaji, '\u{0}')); // 0xFF24
+        hash.insert(String::from("Hiragana"), Unicode::new(xkb::KEY_Hiragana, '\u{0}')); // 0xFF25
+        hash.insert(String::from("Katakana"), Unicode::new(xkb::KEY_Katakana, '\u{0}')); // 0xFF26
         hash.insert(
             String::from("Hiragana_Katakana"),
             Unicode::new(xkb::KEY_Hiragana_Katakana, '\u{0}'),
         ); // 0xFF27
-        hash.insert(
-            String::from("Zenkaku"),
-            Unicode::new(xkb::KEY_Zenkaku, '\u{0}'),
-        ); // 0xFF28
-        hash.insert(
-            String::from("Hankaku"),
-            Unicode::new(xkb::KEY_Hankaku, '\u{0}'),
-        ); // 0xFF29
+        hash.insert(String::from("Zenkaku"), Unicode::new(xkb::KEY_Zenkaku, '\u{0}')); // 0xFF28
+        hash.insert(String::from("Hankaku"), Unicode::new(xkb::KEY_Hankaku, '\u{0}')); // 0xFF29
         hash.insert(
             String::from("Zenkaku_Hankaku"),
             Unicode::new(xkb::KEY_Zenkaku_Hankaku, '\u{0}'),
         ); // 0xFF2A
-        hash.insert(
-            String::from("Touroku"),
-            Unicode::new(xkb::KEY_Touroku, '\u{0}'),
-        ); // 0xFF2B
-        hash.insert(
-            String::from("Massyo"),
-            Unicode::new(xkb::KEY_Massyo, '\u{0}'),
-        ); // 0xFF2C
+        hash.insert(String::from("Touroku"), Unicode::new(xkb::KEY_Touroku, '\u{0}')); // 0xFF2B
+        hash.insert(String::from("Massyo"), Unicode::new(xkb::KEY_Massyo, '\u{0}')); // 0xFF2C
         hash.insert(
             String::from("Kana_Lock"),
             Unicode::new(xkb::KEY_Kana_Lock, '\u{0}'),
@@ -213,10 +168,7 @@ impl KeysymHash {
         hash.insert(String::from("Right"), Unicode::new(xkb::KEY_Right, '\u{0}')); // 0xFF53
         hash.insert(String::from("Down"), Unicode::new(xkb::KEY_Down, '\u{0}')); // 0xFF54
         hash.insert(String::from("Prior"), Unicode::new(xkb::KEY_Prior, '\u{0}')); // 0xFF55
-        hash.insert(
-            String::from("Page_Up"),
-            Unicode::new(xkb::KEY_Page_Up, '\u{0}'),
-        ); // 0xFF55
+        hash.insert(String::from("Page_Up"), Unicode::new(xkb::KEY_Page_Up, '\u{0}')); // 0xFF55
         hash.insert(String::from("Next"), Unicode::new(xkb::KEY_Next, '\u{0}')); // 0xFF56
         hash.insert(
             String::from("Page_Down"),
@@ -224,27 +176,15 @@ impl KeysymHash {
         ); // 0xFF56
         hash.insert(String::from("End"), Unicode::new(xkb::KEY_End, '\u{0}')); // 0xFF57
         hash.insert(String::from("Begin"), Unicode::new(xkb::KEY_Begin, '\u{0}')); // 0xFF58
-        hash.insert(
-            String::from("Select"),
-            Unicode::new(xkb::KEY_Select, '\u{0}'),
-        ); // 0xFF60
+        hash.insert(String::from("Select"), Unicode::new(xkb::KEY_Select, '\u{0}')); // 0xFF60
         hash.insert(String::from("Print"), Unicode::new(xkb::KEY_Print, '\u{0}')); // 0xFF61
-        hash.insert(
-            String::from("Execute"),
-            Unicode::new(xkb::KEY_Execute, '\u{0}'),
-        ); // 0xFF62
-        hash.insert(
-            String::from("Insert"),
-            Unicode::new(xkb::KEY_Insert, '\u{0}'),
-        ); // 0xFF63
+        hash.insert(String::from("Execute"), Unicode::new(xkb::KEY_Execute, '\u{0}')); // 0xFF62
+        hash.insert(String::from("Insert"), Unicode::new(xkb::KEY_Insert, '\u{0}')); // 0xFF63
         hash.insert(String::from("Undo"), Unicode::new(xkb::KEY_Undo, '\u{0}')); // 0xFF65
         hash.insert(String::from("Redo"), Unicode::new(xkb::KEY_Redo, '\u{0}')); // 0xFF66
         hash.insert(String::from("Menu"), Unicode::new(xkb::KEY_Menu, '\u{0}')); // 0xFF67
         hash.insert(String::from("Find"), Unicode::new(xkb::KEY_Find, '\u{0}')); // 0xFF68
-        hash.insert(
-            String::from("Cancel"),
-            Unicode::new(xkb::KEY_Cancel, '\u{0}'),
-        ); // 0xFF69
+        hash.insert(String::from("Cancel"), Unicode::new(xkb::KEY_Cancel, '\u{0}')); // 0xFF69
         hash.insert(String::from("Help"), Unicode::new(xkb::KEY_Help, '\u{0}')); // 0xFF6A
         hash.insert(String::from("Break"), Unicode::new(xkb::KEY_Break, '\u{0}')); // 0xFF6B
         hash.insert(
@@ -255,67 +195,34 @@ impl KeysymHash {
             String::from("script_switch"),
             Unicode::new(xkb::KEY_script_switch, '\u{0}'),
         ); // 0xFF7E
-        hash.insert(
-            String::from("Num_Lock"),
-            Unicode::new(xkb::KEY_Num_Lock, '\u{0}'),
-        ); // 0xFF7F
+        hash.insert(String::from("Num_Lock"), Unicode::new(xkb::KEY_Num_Lock, '\u{0}')); // 0xFF7F
         hash.insert(
             String::from("KP_Space"),
             Unicode::new(xkb::KEY_KP_Space, '\u{20}'),
         ); // 0xFF80
-        hash.insert(
-            String::from("KP_Tab"),
-            Unicode::new(xkb::KEY_KP_Tab, '\u{9}'),
-        ); // 0xFF89
-        hash.insert(
-            String::from("KP_Enter"),
-            Unicode::new(xkb::KEY_KP_Enter, '\u{d}'),
-        ); // 0xFF8D
+        hash.insert(String::from("KP_Tab"), Unicode::new(xkb::KEY_KP_Tab, '\u{9}')); // 0xFF89
+        hash.insert(String::from("KP_Enter"), Unicode::new(xkb::KEY_KP_Enter, '\u{d}')); // 0xFF8D
         hash.insert(String::from("KP_F1"), Unicode::new(xkb::KEY_KP_F1, '\u{0}')); // 0xFF91
         hash.insert(String::from("KP_F2"), Unicode::new(xkb::KEY_KP_F2, '\u{0}')); // 0xFF92
         hash.insert(String::from("KP_F3"), Unicode::new(xkb::KEY_KP_F3, '\u{0}')); // 0xFF93
         hash.insert(String::from("KP_F4"), Unicode::new(xkb::KEY_KP_F4, '\u{0}')); // 0xFF94
-        hash.insert(
-            String::from("KP_Home"),
-            Unicode::new(xkb::KEY_KP_Home, '\u{0}'),
-        ); // 0xFF95
-        hash.insert(
-            String::from("KP_Left"),
-            Unicode::new(xkb::KEY_KP_Left, '\u{0}'),
-        ); // 0xFF96
+        hash.insert(String::from("KP_Home"), Unicode::new(xkb::KEY_KP_Home, '\u{0}')); // 0xFF95
+        hash.insert(String::from("KP_Left"), Unicode::new(xkb::KEY_KP_Left, '\u{0}')); // 0xFF96
         hash.insert(String::from("KP_Up"), Unicode::new(xkb::KEY_KP_Up, '\u{0}')); // 0xFF97
-        hash.insert(
-            String::from("KP_Right"),
-            Unicode::new(xkb::KEY_KP_Right, '\u{0}'),
-        ); // 0xFF98
-        hash.insert(
-            String::from("KP_Down"),
-            Unicode::new(xkb::KEY_KP_Down, '\u{0}'),
-        ); // 0xFF99
-        hash.insert(
-            String::from("KP_Prior"),
-            Unicode::new(xkb::KEY_KP_Prior, '\u{0}'),
-        ); // 0xFF9A
+        hash.insert(String::from("KP_Right"), Unicode::new(xkb::KEY_KP_Right, '\u{0}')); // 0xFF98
+        hash.insert(String::from("KP_Down"), Unicode::new(xkb::KEY_KP_Down, '\u{0}')); // 0xFF99
+        hash.insert(String::from("KP_Prior"), Unicode::new(xkb::KEY_KP_Prior, '\u{0}')); // 0xFF9A
         hash.insert(
             String::from("KP_Page_Up"),
             Unicode::new(xkb::KEY_KP_Page_Up, '\u{0}'),
         ); // 0xFF9A
-        hash.insert(
-            String::from("KP_Next"),
-            Unicode::new(xkb::KEY_KP_Next, '\u{0}'),
-        ); // 0xFF9B
+        hash.insert(String::from("KP_Next"), Unicode::new(xkb::KEY_KP_Next, '\u{0}')); // 0xFF9B
         hash.insert(
             String::from("KP_Page_Down"),
             Unicode::new(xkb::KEY_KP_Page_Down, '\u{0}'),
         ); // 0xFF9B
-        hash.insert(
-            String::from("KP_End"),
-            Unicode::new(xkb::KEY_KP_End, '\u{0}'),
-        ); // 0xFF9C
-        hash.insert(
-            String::from("KP_Begin"),
-            Unicode::new(xkb::KEY_KP_Begin, '\u{0}'),
-        ); // 0xFF9D
+        hash.insert(String::from("KP_End"), Unicode::new(xkb::KEY_KP_End, '\u{0}')); // 0xFF9C
+        hash.insert(String::from("KP_Begin"), Unicode::new(xkb::KEY_KP_Begin, '\u{0}')); // 0xFF9D
         hash.insert(
             String::from("KP_Insert"),
             Unicode::new(xkb::KEY_KP_Insert, '\u{0}'),
@@ -332,10 +239,7 @@ impl KeysymHash {
             String::from("KP_Multiply"),
             Unicode::new(xkb::KEY_KP_Multiply, '\u{2a}'),
         ); // 0xFFAA
-        hash.insert(
-            String::from("KP_Add"),
-            Unicode::new(xkb::KEY_KP_Add, '\u{2b}'),
-        ); // 0xFFAB
+        hash.insert(String::from("KP_Add"), Unicode::new(xkb::KEY_KP_Add, '\u{2b}')); // 0xFFAB
         hash.insert(
             String::from("KP_Separator"),
             Unicode::new(xkb::KEY_KP_Separator, '\u{2c}'),
@@ -422,14 +326,8 @@ impl KeysymHash {
         hash.insert(String::from("R14"), Unicode::new(xkb::KEY_R14, '\u{0}')); // 0xFFDF
         hash.insert(String::from("F35"), Unicode::new(xkb::KEY_F35, '\u{0}')); // 0xFFE0
         hash.insert(String::from("R15"), Unicode::new(xkb::KEY_R15, '\u{0}')); // 0xFFE0
-        hash.insert(
-            String::from("Shift_L"),
-            Unicode::new(xkb::KEY_Shift_L, '\u{0}'),
-        ); // 0xFFE1
-        hash.insert(
-            String::from("Shift_R"),
-            Unicode::new(xkb::KEY_Shift_R, '\u{0}'),
-        ); // 0xFFE2
+        hash.insert(String::from("Shift_L"), Unicode::new(xkb::KEY_Shift_L, '\u{0}')); // 0xFFE1
+        hash.insert(String::from("Shift_R"), Unicode::new(xkb::KEY_Shift_R, '\u{0}')); // 0xFFE2
         hash.insert(
             String::from("Control_L"),
             Unicode::new(xkb::KEY_Control_L, '\u{0}'),
@@ -446,40 +344,16 @@ impl KeysymHash {
             String::from("Shift_Lock"),
             Unicode::new(xkb::KEY_Shift_Lock, '\u{0}'),
         ); // 0xFFE6
-        hash.insert(
-            String::from("Meta_L"),
-            Unicode::new(xkb::KEY_Meta_L, '\u{0}'),
-        ); // 0xFFE7
-        hash.insert(
-            String::from("Meta_R"),
-            Unicode::new(xkb::KEY_Meta_R, '\u{0}'),
-        ); // 0xFFE8
+        hash.insert(String::from("Meta_L"), Unicode::new(xkb::KEY_Meta_L, '\u{0}')); // 0xFFE7
+        hash.insert(String::from("Meta_R"), Unicode::new(xkb::KEY_Meta_R, '\u{0}')); // 0xFFE8
         hash.insert(String::from("Alt_L"), Unicode::new(xkb::KEY_Alt_L, '\u{0}')); // 0xFFE9
         hash.insert(String::from("Alt_R"), Unicode::new(xkb::KEY_Alt_R, '\u{0}')); // 0xFFEA
-        hash.insert(
-            String::from("Super_L"),
-            Unicode::new(xkb::KEY_Super_L, '\u{0}'),
-        ); // 0xFFEB
-        hash.insert(
-            String::from("Super_R"),
-            Unicode::new(xkb::KEY_Super_R, '\u{0}'),
-        ); // 0xFFEC
-        hash.insert(
-            String::from("Hyper_L"),
-            Unicode::new(xkb::KEY_Hyper_L, '\u{0}'),
-        ); // 0xFFED
-        hash.insert(
-            String::from("Hyper_R"),
-            Unicode::new(xkb::KEY_Hyper_R, '\u{0}'),
-        ); // 0xFFEE
-        hash.insert(
-            String::from("space"),
-            Unicode::new(xkb::KEY_space, '\u{20}'),
-        ); // 0x020
-        hash.insert(
-            String::from("exclam"),
-            Unicode::new(xkb::KEY_exclam, '\u{21}'),
-        ); // 0x021
+        hash.insert(String::from("Super_L"), Unicode::new(xkb::KEY_Super_L, '\u{0}')); // 0xFFEB
+        hash.insert(String::from("Super_R"), Unicode::new(xkb::KEY_Super_R, '\u{0}')); // 0xFFEC
+        hash.insert(String::from("Hyper_L"), Unicode::new(xkb::KEY_Hyper_L, '\u{0}')); // 0xFFED
+        hash.insert(String::from("Hyper_R"), Unicode::new(xkb::KEY_Hyper_R, '\u{0}')); // 0xFFEE
+        hash.insert(String::from("space"), Unicode::new(xkb::KEY_space, '\u{20}')); // 0x020
+        hash.insert(String::from("exclam"), Unicode::new(xkb::KEY_exclam, '\u{21}')); // 0x021
         hash.insert(
             String::from("quotedbl"),
             Unicode::new(xkb::KEY_quotedbl, '\u{22}'),
@@ -488,14 +362,8 @@ impl KeysymHash {
             String::from("numbersign"),
             Unicode::new(xkb::KEY_numbersign, '\u{23}'),
         ); // 0x023
-        hash.insert(
-            String::from("dollar"),
-            Unicode::new(xkb::KEY_dollar, '\u{24}'),
-        ); // 0x024
-        hash.insert(
-            String::from("percent"),
-            Unicode::new(xkb::KEY_percent, '\u{25}'),
-        ); // 0x025
+        hash.insert(String::from("dollar"), Unicode::new(xkb::KEY_dollar, '\u{24}')); // 0x024
+        hash.insert(String::from("percent"), Unicode::new(xkb::KEY_percent, '\u{25}')); // 0x025
         hash.insert(
             String::from("ampersand"),
             Unicode::new(xkb::KEY_ampersand, '\u{26}'),
@@ -521,22 +389,10 @@ impl KeysymHash {
             Unicode::new(xkb::KEY_asterisk, '\u{2a}'),
         ); // 0x02a
         hash.insert(String::from("plus"), Unicode::new(xkb::KEY_plus, '\u{2b}')); // 0x02b
-        hash.insert(
-            String::from("comma"),
-            Unicode::new(xkb::KEY_comma, '\u{2c}'),
-        ); // 0x02c
-        hash.insert(
-            String::from("minus"),
-            Unicode::new(xkb::KEY_minus, '\u{2d}'),
-        ); // 0x02d
-        hash.insert(
-            String::from("period"),
-            Unicode::new(xkb::KEY_period, '\u{2e}'),
-        ); // 0x02e
-        hash.insert(
-            String::from("slash"),
-            Unicode::new(xkb::KEY_slash, '\u{2f}'),
-        ); // 0x02f
+        hash.insert(String::from("comma"), Unicode::new(xkb::KEY_comma, '\u{2c}')); // 0x02c
+        hash.insert(String::from("minus"), Unicode::new(xkb::KEY_minus, '\u{2d}')); // 0x02d
+        hash.insert(String::from("period"), Unicode::new(xkb::KEY_period, '\u{2e}')); // 0x02e
+        hash.insert(String::from("slash"), Unicode::new(xkb::KEY_slash, '\u{2f}')); // 0x02f
         hash.insert(String::from("0"), Unicode::new(xkb::KEY_0, '\u{30}')); // 0x030
         hash.insert(String::from("1"), Unicode::new(xkb::KEY_1, '\u{31}')); // 0x031
         hash.insert(String::from("2"), Unicode::new(xkb::KEY_2, '\u{32}')); // 0x032
@@ -547,23 +403,14 @@ impl KeysymHash {
         hash.insert(String::from("7"), Unicode::new(xkb::KEY_7, '\u{37}')); // 0x037
         hash.insert(String::from("8"), Unicode::new(xkb::KEY_8, '\u{38}')); // 0x038
         hash.insert(String::from("9"), Unicode::new(xkb::KEY_9, '\u{39}')); // 0x039
-        hash.insert(
-            String::from("colon"),
-            Unicode::new(xkb::KEY_colon, '\u{3a}'),
-        ); // 0x03a
+        hash.insert(String::from("colon"), Unicode::new(xkb::KEY_colon, '\u{3a}')); // 0x03a
         hash.insert(
             String::from("semicolon"),
             Unicode::new(xkb::KEY_semicolon, '\u{3b}'),
         ); // 0x03b
         hash.insert(String::from("less"), Unicode::new(xkb::KEY_less, '\u{3c}')); // 0x03c
-        hash.insert(
-            String::from("equal"),
-            Unicode::new(xkb::KEY_equal, '\u{3d}'),
-        ); // 0x03d
-        hash.insert(
-            String::from("greater"),
-            Unicode::new(xkb::KEY_greater, '\u{3e}'),
-        ); // 0x03e
+        hash.insert(String::from("equal"), Unicode::new(xkb::KEY_equal, '\u{3d}')); // 0x03d
+        hash.insert(String::from("greater"), Unicode::new(xkb::KEY_greater, '\u{3e}')); // 0x03e
         hash.insert(
             String::from("question"),
             Unicode::new(xkb::KEY_question, '\u{3f}'),
@@ -615,10 +462,7 @@ impl KeysymHash {
             String::from("underscore"),
             Unicode::new(xkb::KEY_underscore, '\u{5f}'),
         ); // 0x05f
-        hash.insert(
-            String::from("grave"),
-            Unicode::new(xkb::KEY_grave, '\u{60}'),
-        ); // 0x060
+        hash.insert(String::from("grave"), Unicode::new(xkb::KEY_grave, '\u{60}')); // 0x060
         hash.insert(
             String::from("quoteleft"),
             Unicode::new(xkb::KEY_quoteleft, '\u{60}'),
@@ -684,10 +528,7 @@ impl KeysymHash {
             String::from("brokenbar"),
             Unicode::new(xkb::KEY_brokenbar, '\u{a6}'),
         ); // 0x0a6
-        hash.insert(
-            String::from("section"),
-            Unicode::new(xkb::KEY_section, '\u{a7}'),
-        ); // 0x0a7
+        hash.insert(String::from("section"), Unicode::new(xkb::KEY_section, '\u{a7}')); // 0x0a7
         hash.insert(
             String::from("diaeresis"),
             Unicode::new(xkb::KEY_diaeresis, '\u{a8}'),
@@ -704,26 +545,14 @@ impl KeysymHash {
             String::from("guillemotleft"),
             Unicode::new(xkb::KEY_guillemotleft, '\u{ab}'),
         ); // 0x0ab
-        hash.insert(
-            String::from("notsign"),
-            Unicode::new(xkb::KEY_notsign, '\u{ac}'),
-        ); // 0x0ac
-        hash.insert(
-            String::from("hyphen"),
-            Unicode::new(xkb::KEY_hyphen, '\u{ad}'),
-        ); // 0x0ad
+        hash.insert(String::from("notsign"), Unicode::new(xkb::KEY_notsign, '\u{ac}')); // 0x0ac
+        hash.insert(String::from("hyphen"), Unicode::new(xkb::KEY_hyphen, '\u{ad}')); // 0x0ad
         hash.insert(
             String::from("registered"),
             Unicode::new(xkb::KEY_registered, '\u{ae}'),
         ); // 0x0ae
-        hash.insert(
-            String::from("macron"),
-            Unicode::new(xkb::KEY_macron, '\u{af}'),
-        ); // 0x0af
-        hash.insert(
-            String::from("degree"),
-            Unicode::new(xkb::KEY_degree, '\u{b0}'),
-        ); // 0x0b0
+        hash.insert(String::from("macron"), Unicode::new(xkb::KEY_macron, '\u{af}')); // 0x0af
+        hash.insert(String::from("degree"), Unicode::new(xkb::KEY_degree, '\u{b0}')); // 0x0b0
         hash.insert(
             String::from("plusminus"),
             Unicode::new(xkb::KEY_plusminus, '\u{b1}'),
@@ -736,10 +565,7 @@ impl KeysymHash {
             String::from("threesuperior"),
             Unicode::new(xkb::KEY_threesuperior, '\u{b3}'),
         ); // 0x0b3
-        hash.insert(
-            String::from("acute"),
-            Unicode::new(xkb::KEY_acute, '\u{b4}'),
-        ); // 0x0b4
+        hash.insert(String::from("acute"), Unicode::new(xkb::KEY_acute, '\u{b4}')); // 0x0b4
         hash.insert(String::from("mu"), Unicode::new(xkb::KEY_mu, '\u{b5}')); // 0x0b5
         hash.insert(
             String::from("paragraph"),
@@ -749,10 +575,7 @@ impl KeysymHash {
             String::from("periodcentered"),
             Unicode::new(xkb::KEY_periodcentered, '\u{b7}'),
         ); // 0x0b7
-        hash.insert(
-            String::from("cedilla"),
-            Unicode::new(xkb::KEY_cedilla, '\u{b8}'),
-        ); // 0x0b8
+        hash.insert(String::from("cedilla"), Unicode::new(xkb::KEY_cedilla, '\u{b8}')); // 0x0b8
         hash.insert(
             String::from("onesuperior"),
             Unicode::new(xkb::KEY_onesuperior, '\u{b9}'),
@@ -769,10 +592,7 @@ impl KeysymHash {
             String::from("onequarter"),
             Unicode::new(xkb::KEY_onequarter, '\u{bc}'),
         ); // 0x0bc
-        hash.insert(
-            String::from("onehalf"),
-            Unicode::new(xkb::KEY_onehalf, '\u{bd}'),
-        ); // 0x0bd
+        hash.insert(String::from("onehalf"), Unicode::new(xkb::KEY_onehalf, '\u{bd}')); // 0x0bd
         hash.insert(
             String::from("threequarters"),
             Unicode::new(xkb::KEY_threequarters, '\u{be}'),
@@ -781,43 +601,25 @@ impl KeysymHash {
             String::from("questiondown"),
             Unicode::new(xkb::KEY_questiondown, '\u{bf}'),
         ); // 0x0bf
-        hash.insert(
-            String::from("Agrave"),
-            Unicode::new(xkb::KEY_Agrave, '\u{c0}'),
-        ); // 0x0c0
-        hash.insert(
-            String::from("Aacute"),
-            Unicode::new(xkb::KEY_Aacute, '\u{c1}'),
-        ); // 0x0c1
+        hash.insert(String::from("Agrave"), Unicode::new(xkb::KEY_Agrave, '\u{c0}')); // 0x0c0
+        hash.insert(String::from("Aacute"), Unicode::new(xkb::KEY_Aacute, '\u{c1}')); // 0x0c1
         hash.insert(
             String::from("Acircumflex"),
             Unicode::new(xkb::KEY_Acircumflex, '\u{c2}'),
         ); // 0x0c2
-        hash.insert(
-            String::from("Atilde"),
-            Unicode::new(xkb::KEY_Atilde, '\u{c3}'),
-        ); // 0x0c3
+        hash.insert(String::from("Atilde"), Unicode::new(xkb::KEY_Atilde, '\u{c3}')); // 0x0c3
         hash.insert(
             String::from("Adiaeresis"),
             Unicode::new(xkb::KEY_Adiaeresis, '\u{c4}'),
         ); // 0x0c4
-        hash.insert(
-            String::from("Aring"),
-            Unicode::new(xkb::KEY_Aring, '\u{c5}'),
-        ); // 0x0c5
+        hash.insert(String::from("Aring"), Unicode::new(xkb::KEY_Aring, '\u{c5}')); // 0x0c5
         hash.insert(String::from("AE"), Unicode::new(xkb::KEY_AE, '\u{c6}')); // 0x0c6
         hash.insert(
             String::from("Ccedilla"),
             Unicode::new(xkb::KEY_Ccedilla, '\u{c7}'),
         ); // 0x0c7
-        hash.insert(
-            String::from("Egrave"),
-            Unicode::new(xkb::KEY_Egrave, '\u{c8}'),
-        ); // 0x0c8
-        hash.insert(
-            String::from("Eacute"),
-            Unicode::new(xkb::KEY_Eacute, '\u{c9}'),
-        ); // 0x0c9
+        hash.insert(String::from("Egrave"), Unicode::new(xkb::KEY_Egrave, '\u{c8}')); // 0x0c8
+        hash.insert(String::from("Eacute"), Unicode::new(xkb::KEY_Eacute, '\u{c9}')); // 0x0c9
         hash.insert(
             String::from("Ecircumflex"),
             Unicode::new(xkb::KEY_Ecircumflex, '\u{ca}'),
@@ -826,14 +628,8 @@ impl KeysymHash {
             String::from("Ediaeresis"),
             Unicode::new(xkb::KEY_Ediaeresis, '\u{cb}'),
         ); // 0x0cb
-        hash.insert(
-            String::from("Igrave"),
-            Unicode::new(xkb::KEY_Igrave, '\u{cc}'),
-        ); // 0x0cc
-        hash.insert(
-            String::from("Iacute"),
-            Unicode::new(xkb::KEY_Iacute, '\u{cd}'),
-        ); // 0x0cd
+        hash.insert(String::from("Igrave"), Unicode::new(xkb::KEY_Igrave, '\u{cc}')); // 0x0cc
+        hash.insert(String::from("Iacute"), Unicode::new(xkb::KEY_Iacute, '\u{cd}')); // 0x0cd
         hash.insert(
             String::from("Icircumflex"),
             Unicode::new(xkb::KEY_Icircumflex, '\u{ce}'),
@@ -844,26 +640,14 @@ impl KeysymHash {
         ); // 0x0cf
         hash.insert(String::from("ETH"), Unicode::new(xkb::KEY_ETH, '\u{d0}')); // 0x0d0
         hash.insert(String::from("Eth"), Unicode::new(xkb::KEY_Eth, '\u{d0}')); // 0x0d0
-        hash.insert(
-            String::from("Ntilde"),
-            Unicode::new(xkb::KEY_Ntilde, '\u{d1}'),
-        ); // 0x0d1
-        hash.insert(
-            String::from("Ograve"),
-            Unicode::new(xkb::KEY_Ograve, '\u{d2}'),
-        ); // 0x0d2
-        hash.insert(
-            String::from("Oacute"),
-            Unicode::new(xkb::KEY_Oacute, '\u{d3}'),
-        ); // 0x0d3
+        hash.insert(String::from("Ntilde"), Unicode::new(xkb::KEY_Ntilde, '\u{d1}')); // 0x0d1
+        hash.insert(String::from("Ograve"), Unicode::new(xkb::KEY_Ograve, '\u{d2}')); // 0x0d2
+        hash.insert(String::from("Oacute"), Unicode::new(xkb::KEY_Oacute, '\u{d3}')); // 0x0d3
         hash.insert(
             String::from("Ocircumflex"),
             Unicode::new(xkb::KEY_Ocircumflex, '\u{d4}'),
         ); // 0x0d4
-        hash.insert(
-            String::from("Otilde"),
-            Unicode::new(xkb::KEY_Otilde, '\u{d5}'),
-        ); // 0x0d5
+        hash.insert(String::from("Otilde"), Unicode::new(xkb::KEY_Otilde, '\u{d5}')); // 0x0d5
         hash.insert(
             String::from("Odiaeresis"),
             Unicode::new(xkb::KEY_Odiaeresis, '\u{d6}'),
@@ -876,14 +660,8 @@ impl KeysymHash {
             String::from("Ooblique"),
             Unicode::new(xkb::KEY_Ooblique, '\u{d8}'),
         ); // 0x0d8
-        hash.insert(
-            String::from("Ugrave"),
-            Unicode::new(xkb::KEY_Ugrave, '\u{d9}'),
-        ); // 0x0d9
-        hash.insert(
-            String::from("Uacute"),
-            Unicode::new(xkb::KEY_Uacute, '\u{da}'),
-        ); // 0x0da
+        hash.insert(String::from("Ugrave"), Unicode::new(xkb::KEY_Ugrave, '\u{d9}')); // 0x0d9
+        hash.insert(String::from("Uacute"), Unicode::new(xkb::KEY_Uacute, '\u{da}')); // 0x0da
         hash.insert(
             String::from("Ucircumflex"),
             Unicode::new(xkb::KEY_Ucircumflex, '\u{db}'),
@@ -892,59 +670,29 @@ impl KeysymHash {
             String::from("Udiaeresis"),
             Unicode::new(xkb::KEY_Udiaeresis, '\u{dc}'),
         ); // 0x0dc
-        hash.insert(
-            String::from("Yacute"),
-            Unicode::new(xkb::KEY_Yacute, '\u{dd}'),
-        ); // 0x0dd
-        hash.insert(
-            String::from("THORN"),
-            Unicode::new(xkb::KEY_THORN, '\u{de}'),
-        ); // 0x0de
-        hash.insert(
-            String::from("Thorn"),
-            Unicode::new(xkb::KEY_Thorn, '\u{de}'),
-        ); // 0x0de
-        hash.insert(
-            String::from("ssharp"),
-            Unicode::new(xkb::KEY_ssharp, '\u{df}'),
-        ); // 0x0df
-        hash.insert(
-            String::from("agrave"),
-            Unicode::new(xkb::KEY_agrave, '\u{e0}'),
-        ); // 0x0e0
-        hash.insert(
-            String::from("aacute"),
-            Unicode::new(xkb::KEY_aacute, '\u{e1}'),
-        ); // 0x0e1
+        hash.insert(String::from("Yacute"), Unicode::new(xkb::KEY_Yacute, '\u{dd}')); // 0x0dd
+        hash.insert(String::from("THORN"), Unicode::new(xkb::KEY_THORN, '\u{de}')); // 0x0de
+        hash.insert(String::from("Thorn"), Unicode::new(xkb::KEY_Thorn, '\u{de}')); // 0x0de
+        hash.insert(String::from("ssharp"), Unicode::new(xkb::KEY_ssharp, '\u{df}')); // 0x0df
+        hash.insert(String::from("agrave"), Unicode::new(xkb::KEY_agrave, '\u{e0}')); // 0x0e0
+        hash.insert(String::from("aacute"), Unicode::new(xkb::KEY_aacute, '\u{e1}')); // 0x0e1
         hash.insert(
             String::from("acircumflex"),
             Unicode::new(xkb::KEY_acircumflex, '\u{e2}'),
         ); // 0x0e2
-        hash.insert(
-            String::from("atilde"),
-            Unicode::new(xkb::KEY_atilde, '\u{e3}'),
-        ); // 0x0e3
+        hash.insert(String::from("atilde"), Unicode::new(xkb::KEY_atilde, '\u{e3}')); // 0x0e3
         hash.insert(
             String::from("adiaeresis"),
             Unicode::new(xkb::KEY_adiaeresis, '\u{e4}'),
         ); // 0x0e4
-        hash.insert(
-            String::from("aring"),
-            Unicode::new(xkb::KEY_aring, '\u{e5}'),
-        ); // 0x0e5
+        hash.insert(String::from("aring"), Unicode::new(xkb::KEY_aring, '\u{e5}')); // 0x0e5
         hash.insert(String::from("ae"), Unicode::new(xkb::KEY_ae, '\u{e6}')); // 0x0e6
         hash.insert(
             String::from("ccedilla"),
             Unicode::new(xkb::KEY_ccedilla, '\u{e7}'),
         ); // 0x0e7
-        hash.insert(
-            String::from("egrave"),
-            Unicode::new(xkb::KEY_egrave, '\u{e8}'),
-        ); // 0x0e8
-        hash.insert(
-            String::from("eacute"),
-            Unicode::new(xkb::KEY_eacute, '\u{e9}'),
-        ); // 0x0e9
+        hash.insert(String::from("egrave"), Unicode::new(xkb::KEY_egrave, '\u{e8}')); // 0x0e8
+        hash.insert(String::from("eacute"), Unicode::new(xkb::KEY_eacute, '\u{e9}')); // 0x0e9
         hash.insert(
             String::from("ecircumflex"),
             Unicode::new(xkb::KEY_ecircumflex, '\u{ea}'),
@@ -953,14 +701,8 @@ impl KeysymHash {
             String::from("ediaeresis"),
             Unicode::new(xkb::KEY_ediaeresis, '\u{eb}'),
         ); // 0x0eb
-        hash.insert(
-            String::from("igrave"),
-            Unicode::new(xkb::KEY_igrave, '\u{ec}'),
-        ); // 0x0ec
-        hash.insert(
-            String::from("iacute"),
-            Unicode::new(xkb::KEY_iacute, '\u{ed}'),
-        ); // 0x0ed
+        hash.insert(String::from("igrave"), Unicode::new(xkb::KEY_igrave, '\u{ec}')); // 0x0ec
+        hash.insert(String::from("iacute"), Unicode::new(xkb::KEY_iacute, '\u{ed}')); // 0x0ed
         hash.insert(
             String::from("icircumflex"),
             Unicode::new(xkb::KEY_icircumflex, '\u{ee}'),
@@ -970,26 +712,14 @@ impl KeysymHash {
             Unicode::new(xkb::KEY_idiaeresis, '\u{ef}'),
         ); // 0x0ef
         hash.insert(String::from("eth"), Unicode::new(xkb::KEY_eth, '\u{f0}')); // 0x0f0
-        hash.insert(
-            String::from("ntilde"),
-            Unicode::new(xkb::KEY_ntilde, '\u{f1}'),
-        ); // 0x0f1
-        hash.insert(
-            String::from("ograve"),
-            Unicode::new(xkb::KEY_ograve, '\u{f2}'),
-        ); // 0x0f2
-        hash.insert(
-            String::from("oacute"),
-            Unicode::new(xkb::KEY_oacute, '\u{f3}'),
-        ); // 0x0f3
+        hash.insert(String::from("ntilde"), Unicode::new(xkb::KEY_ntilde, '\u{f1}')); // 0x0f1
+        hash.insert(String::from("ograve"), Unicode::new(xkb::KEY_ograve, '\u{f2}')); // 0x0f2
+        hash.insert(String::from("oacute"), Unicode::new(xkb::KEY_oacute, '\u{f3}')); // 0x0f3
         hash.insert(
             String::from("ocircumflex"),
             Unicode::new(xkb::KEY_ocircumflex, '\u{f4}'),
         ); // 0x0f4
-        hash.insert(
-            String::from("otilde"),
-            Unicode::new(xkb::KEY_otilde, '\u{f5}'),
-        ); // 0x0f5
+        hash.insert(String::from("otilde"), Unicode::new(xkb::KEY_otilde, '\u{f5}')); // 0x0f5
         hash.insert(
             String::from("odiaeresis"),
             Unicode::new(xkb::KEY_odiaeresis, '\u{f6}'),
@@ -998,18 +728,9 @@ impl KeysymHash {
             String::from("division"),
             Unicode::new(xkb::KEY_division, '\u{f7}'),
         ); // 0x0f7
-        hash.insert(
-            String::from("oslash"),
-            Unicode::new(xkb::KEY_oslash, '\u{f8}'),
-        ); // 0x0f8
-        hash.insert(
-            String::from("ugrave"),
-            Unicode::new(xkb::KEY_ugrave, '\u{f9}'),
-        ); // 0x0f9
-        hash.insert(
-            String::from("uacute"),
-            Unicode::new(xkb::KEY_uacute, '\u{fa}'),
-        ); // 0x0fa
+        hash.insert(String::from("oslash"), Unicode::new(xkb::KEY_oslash, '\u{f8}')); // 0x0f8
+        hash.insert(String::from("ugrave"), Unicode::new(xkb::KEY_ugrave, '\u{f9}')); // 0x0f9
+        hash.insert(String::from("uacute"), Unicode::new(xkb::KEY_uacute, '\u{fa}')); // 0x0fa
         hash.insert(
             String::from("ucircumflex"),
             Unicode::new(xkb::KEY_ucircumflex, '\u{fb}'),
@@ -1018,170 +739,68 @@ impl KeysymHash {
             String::from("udiaeresis"),
             Unicode::new(xkb::KEY_udiaeresis, '\u{fc}'),
         ); // 0x0fc
-        hash.insert(
-            String::from("yacute"),
-            Unicode::new(xkb::KEY_yacute, '\u{fd}'),
-        ); // 0x0fd
-        hash.insert(
-            String::from("thorn"),
-            Unicode::new(xkb::KEY_thorn, '\u{fe}'),
-        ); // 0x0fe
+        hash.insert(String::from("yacute"), Unicode::new(xkb::KEY_yacute, '\u{fd}')); // 0x0fd
+        hash.insert(String::from("thorn"), Unicode::new(xkb::KEY_thorn, '\u{fe}')); // 0x0fe
         hash.insert(
             String::from("ydiaeresis"),
             Unicode::new(xkb::KEY_ydiaeresis, '\u{ff}'),
         ); // 0x0ff
-        hash.insert(
-            String::from("Aogonek"),
-            Unicode::new(xkb::KEY_Aogonek, '\u{104}'),
-        ); // 0x1a1
-        hash.insert(
-            String::from("breve"),
-            Unicode::new(xkb::KEY_breve, '\u{2d8}'),
-        ); // 0x1a2
-        hash.insert(
-            String::from("Lstroke"),
-            Unicode::new(xkb::KEY_Lstroke, '\u{141}'),
-        ); // 0x1a3
-        hash.insert(
-            String::from("Lcaron"),
-            Unicode::new(xkb::KEY_Lcaron, '\u{13d}'),
-        ); // 0x1a5
-        hash.insert(
-            String::from("Sacute"),
-            Unicode::new(xkb::KEY_Sacute, '\u{15a}'),
-        ); // 0x1a6
-        hash.insert(
-            String::from("Scaron"),
-            Unicode::new(xkb::KEY_Scaron, '\u{160}'),
-        ); // 0x1a9
+        hash.insert(String::from("Aogonek"), Unicode::new(xkb::KEY_Aogonek, '\u{104}')); // 0x1a1
+        hash.insert(String::from("breve"), Unicode::new(xkb::KEY_breve, '\u{2d8}')); // 0x1a2
+        hash.insert(String::from("Lstroke"), Unicode::new(xkb::KEY_Lstroke, '\u{141}')); // 0x1a3
+        hash.insert(String::from("Lcaron"), Unicode::new(xkb::KEY_Lcaron, '\u{13d}')); // 0x1a5
+        hash.insert(String::from("Sacute"), Unicode::new(xkb::KEY_Sacute, '\u{15a}')); // 0x1a6
+        hash.insert(String::from("Scaron"), Unicode::new(xkb::KEY_Scaron, '\u{160}')); // 0x1a9
         hash.insert(
             String::from("Scedilla"),
             Unicode::new(xkb::KEY_Scedilla, '\u{15e}'),
         ); // 0x1aa
-        hash.insert(
-            String::from("Tcaron"),
-            Unicode::new(xkb::KEY_Tcaron, '\u{164}'),
-        ); // 0x1ab
-        hash.insert(
-            String::from("Zacute"),
-            Unicode::new(xkb::KEY_Zacute, '\u{179}'),
-        ); // 0x1ac
-        hash.insert(
-            String::from("Zcaron"),
-            Unicode::new(xkb::KEY_Zcaron, '\u{17d}'),
-        ); // 0x1ae
+        hash.insert(String::from("Tcaron"), Unicode::new(xkb::KEY_Tcaron, '\u{164}')); // 0x1ab
+        hash.insert(String::from("Zacute"), Unicode::new(xkb::KEY_Zacute, '\u{179}')); // 0x1ac
+        hash.insert(String::from("Zcaron"), Unicode::new(xkb::KEY_Zcaron, '\u{17d}')); // 0x1ae
         hash.insert(
             String::from("Zabovedot"),
             Unicode::new(xkb::KEY_Zabovedot, '\u{17b}'),
         ); // 0x1af
-        hash.insert(
-            String::from("aogonek"),
-            Unicode::new(xkb::KEY_aogonek, '\u{105}'),
-        ); // 0x1b1
-        hash.insert(
-            String::from("ogonek"),
-            Unicode::new(xkb::KEY_ogonek, '\u{2db}'),
-        ); // 0x1b2
-        hash.insert(
-            String::from("lstroke"),
-            Unicode::new(xkb::KEY_lstroke, '\u{142}'),
-        ); // 0x1b3
-        hash.insert(
-            String::from("lcaron"),
-            Unicode::new(xkb::KEY_lcaron, '\u{13e}'),
-        ); // 0x1b5
-        hash.insert(
-            String::from("sacute"),
-            Unicode::new(xkb::KEY_sacute, '\u{15b}'),
-        ); // 0x1b6
-        hash.insert(
-            String::from("caron"),
-            Unicode::new(xkb::KEY_caron, '\u{2c7}'),
-        ); // 0x1b7
-        hash.insert(
-            String::from("scaron"),
-            Unicode::new(xkb::KEY_scaron, '\u{161}'),
-        ); // 0x1b9
+        hash.insert(String::from("aogonek"), Unicode::new(xkb::KEY_aogonek, '\u{105}')); // 0x1b1
+        hash.insert(String::from("ogonek"), Unicode::new(xkb::KEY_ogonek, '\u{2db}')); // 0x1b2
+        hash.insert(String::from("lstroke"), Unicode::new(xkb::KEY_lstroke, '\u{142}')); // 0x1b3
+        hash.insert(String::from("lcaron"), Unicode::new(xkb::KEY_lcaron, '\u{13e}')); // 0x1b5
+        hash.insert(String::from("sacute"), Unicode::new(xkb::KEY_sacute, '\u{15b}')); // 0x1b6
+        hash.insert(String::from("caron"), Unicode::new(xkb::KEY_caron, '\u{2c7}')); // 0x1b7
+        hash.insert(String::from("scaron"), Unicode::new(xkb::KEY_scaron, '\u{161}')); // 0x1b9
         hash.insert(
             String::from("scedilla"),
             Unicode::new(xkb::KEY_scedilla, '\u{15f}'),
         ); // 0x1ba
-        hash.insert(
-            String::from("tcaron"),
-            Unicode::new(xkb::KEY_tcaron, '\u{165}'),
-        ); // 0x1bb
-        hash.insert(
-            String::from("zacute"),
-            Unicode::new(xkb::KEY_zacute, '\u{17a}'),
-        ); // 0x1bc
+        hash.insert(String::from("tcaron"), Unicode::new(xkb::KEY_tcaron, '\u{165}')); // 0x1bb
+        hash.insert(String::from("zacute"), Unicode::new(xkb::KEY_zacute, '\u{17a}')); // 0x1bc
         hash.insert(
             String::from("doubleacute"),
             Unicode::new(xkb::KEY_doubleacute, '\u{2dd}'),
         ); // 0x1bd
-        hash.insert(
-            String::from("zcaron"),
-            Unicode::new(xkb::KEY_zcaron, '\u{17e}'),
-        ); // 0x1be
+        hash.insert(String::from("zcaron"), Unicode::new(xkb::KEY_zcaron, '\u{17e}')); // 0x1be
         hash.insert(
             String::from("zabovedot"),
             Unicode::new(xkb::KEY_zabovedot, '\u{17c}'),
         ); // 0x1bf
-        hash.insert(
-            String::from("Racute"),
-            Unicode::new(xkb::KEY_Racute, '\u{154}'),
-        ); // 0x1c0
-        hash.insert(
-            String::from("Abreve"),
-            Unicode::new(xkb::KEY_Abreve, '\u{102}'),
-        ); // 0x1c3
-        hash.insert(
-            String::from("Lacute"),
-            Unicode::new(xkb::KEY_Lacute, '\u{139}'),
-        ); // 0x1c5
-        hash.insert(
-            String::from("Cacute"),
-            Unicode::new(xkb::KEY_Cacute, '\u{106}'),
-        ); // 0x1c6
-        hash.insert(
-            String::from("Ccaron"),
-            Unicode::new(xkb::KEY_Ccaron, '\u{10c}'),
-        ); // 0x1c8
-        hash.insert(
-            String::from("Eogonek"),
-            Unicode::new(xkb::KEY_Eogonek, '\u{118}'),
-        ); // 0x1ca
-        hash.insert(
-            String::from("Ecaron"),
-            Unicode::new(xkb::KEY_Ecaron, '\u{11a}'),
-        ); // 0x1cc
-        hash.insert(
-            String::from("Dcaron"),
-            Unicode::new(xkb::KEY_Dcaron, '\u{10e}'),
-        ); // 0x1cf
-        hash.insert(
-            String::from("Dstroke"),
-            Unicode::new(xkb::KEY_Dstroke, '\u{110}'),
-        ); // 0x1d0
-        hash.insert(
-            String::from("Nacute"),
-            Unicode::new(xkb::KEY_Nacute, '\u{143}'),
-        ); // 0x1d1
-        hash.insert(
-            String::from("Ncaron"),
-            Unicode::new(xkb::KEY_Ncaron, '\u{147}'),
-        ); // 0x1d2
+        hash.insert(String::from("Racute"), Unicode::new(xkb::KEY_Racute, '\u{154}')); // 0x1c0
+        hash.insert(String::from("Abreve"), Unicode::new(xkb::KEY_Abreve, '\u{102}')); // 0x1c3
+        hash.insert(String::from("Lacute"), Unicode::new(xkb::KEY_Lacute, '\u{139}')); // 0x1c5
+        hash.insert(String::from("Cacute"), Unicode::new(xkb::KEY_Cacute, '\u{106}')); // 0x1c6
+        hash.insert(String::from("Ccaron"), Unicode::new(xkb::KEY_Ccaron, '\u{10c}')); // 0x1c8
+        hash.insert(String::from("Eogonek"), Unicode::new(xkb::KEY_Eogonek, '\u{118}')); // 0x1ca
+        hash.insert(String::from("Ecaron"), Unicode::new(xkb::KEY_Ecaron, '\u{11a}')); // 0x1cc
+        hash.insert(String::from("Dcaron"), Unicode::new(xkb::KEY_Dcaron, '\u{10e}')); // 0x1cf
+        hash.insert(String::from("Dstroke"), Unicode::new(xkb::KEY_Dstroke, '\u{110}')); // 0x1d0
+        hash.insert(String::from("Nacute"), Unicode::new(xkb::KEY_Nacute, '\u{143}')); // 0x1d1
+        hash.insert(String::from("Ncaron"), Unicode::new(xkb::KEY_Ncaron, '\u{147}')); // 0x1d2
         hash.insert(
             String::from("Odoubleacute"),
             Unicode::new(xkb::KEY_Odoubleacute, '\u{150}'),
         ); // 0x1d5
-        hash.insert(
-            String::from("Rcaron"),
-            Unicode::new(xkb::KEY_Rcaron, '\u{158}'),
-        ); // 0x1d8
-        hash.insert(
-            String::from("Uring"),
-            Unicode::new(xkb::KEY_Uring, '\u{16e}'),
-        ); // 0x1d9
+        hash.insert(String::from("Rcaron"), Unicode::new(xkb::KEY_Rcaron, '\u{158}')); // 0x1d8
+        hash.insert(String::from("Uring"), Unicode::new(xkb::KEY_Uring, '\u{16e}')); // 0x1d9
         hash.insert(
             String::from("Udoubleacute"),
             Unicode::new(xkb::KEY_Udoubleacute, '\u{170}'),
@@ -1190,50 +809,17 @@ impl KeysymHash {
             String::from("Tcedilla"),
             Unicode::new(xkb::KEY_Tcedilla, '\u{162}'),
         ); // 0x1de
-        hash.insert(
-            String::from("racute"),
-            Unicode::new(xkb::KEY_racute, '\u{155}'),
-        ); // 0x1e0
-        hash.insert(
-            String::from("abreve"),
-            Unicode::new(xkb::KEY_abreve, '\u{103}'),
-        ); // 0x1e3
-        hash.insert(
-            String::from("lacute"),
-            Unicode::new(xkb::KEY_lacute, '\u{13a}'),
-        ); // 0x1e5
-        hash.insert(
-            String::from("cacute"),
-            Unicode::new(xkb::KEY_cacute, '\u{107}'),
-        ); // 0x1e6
-        hash.insert(
-            String::from("ccaron"),
-            Unicode::new(xkb::KEY_ccaron, '\u{10d}'),
-        ); // 0x1e8
-        hash.insert(
-            String::from("eogonek"),
-            Unicode::new(xkb::KEY_eogonek, '\u{119}'),
-        ); // 0x1ea
-        hash.insert(
-            String::from("ecaron"),
-            Unicode::new(xkb::KEY_ecaron, '\u{11b}'),
-        ); // 0x1ec
-        hash.insert(
-            String::from("dcaron"),
-            Unicode::new(xkb::KEY_dcaron, '\u{10f}'),
-        ); // 0x1ef
-        hash.insert(
-            String::from("dstroke"),
-            Unicode::new(xkb::KEY_dstroke, '\u{111}'),
-        ); // 0x1f0
-        hash.insert(
-            String::from("nacute"),
-            Unicode::new(xkb::KEY_nacute, '\u{144}'),
-        ); // 0x1f1
-        hash.insert(
-            String::from("ncaron"),
-            Unicode::new(xkb::KEY_ncaron, '\u{148}'),
-        ); // 0x1f2
+        hash.insert(String::from("racute"), Unicode::new(xkb::KEY_racute, '\u{155}')); // 0x1e0
+        hash.insert(String::from("abreve"), Unicode::new(xkb::KEY_abreve, '\u{103}')); // 0x1e3
+        hash.insert(String::from("lacute"), Unicode::new(xkb::KEY_lacute, '\u{13a}')); // 0x1e5
+        hash.insert(String::from("cacute"), Unicode::new(xkb::KEY_cacute, '\u{107}')); // 0x1e6
+        hash.insert(String::from("ccaron"), Unicode::new(xkb::KEY_ccaron, '\u{10d}')); // 0x1e8
+        hash.insert(String::from("eogonek"), Unicode::new(xkb::KEY_eogonek, '\u{119}')); // 0x1ea
+        hash.insert(String::from("ecaron"), Unicode::new(xkb::KEY_ecaron, '\u{11b}')); // 0x1ec
+        hash.insert(String::from("dcaron"), Unicode::new(xkb::KEY_dcaron, '\u{10f}')); // 0x1ef
+        hash.insert(String::from("dstroke"), Unicode::new(xkb::KEY_dstroke, '\u{111}')); // 0x1f0
+        hash.insert(String::from("nacute"), Unicode::new(xkb::KEY_nacute, '\u{144}')); // 0x1f1
+        hash.insert(String::from("ncaron"), Unicode::new(xkb::KEY_ncaron, '\u{148}')); // 0x1f2
         hash.insert(
             String::from("odoubleacute"),
             Unicode::new(xkb::KEY_odoubleacute, '\u{151}'),
@@ -1242,14 +828,8 @@ impl KeysymHash {
             String::from("udoubleacute"),
             Unicode::new(xkb::KEY_udoubleacute, '\u{171}'),
         ); // 0x1fb
-        hash.insert(
-            String::from("rcaron"),
-            Unicode::new(xkb::KEY_rcaron, '\u{159}'),
-        ); // 0x1f8
-        hash.insert(
-            String::from("uring"),
-            Unicode::new(xkb::KEY_uring, '\u{16f}'),
-        ); // 0x1f9
+        hash.insert(String::from("rcaron"), Unicode::new(xkb::KEY_rcaron, '\u{159}')); // 0x1f8
+        hash.insert(String::from("uring"), Unicode::new(xkb::KEY_uring, '\u{16f}')); // 0x1f9
         hash.insert(
             String::from("tcedilla"),
             Unicode::new(xkb::KEY_tcedilla, '\u{163}'),
@@ -1258,10 +838,7 @@ impl KeysymHash {
             String::from("abovedot"),
             Unicode::new(xkb::KEY_abovedot, '\u{2d9}'),
         ); // 0x1ff
-        hash.insert(
-            String::from("Hstroke"),
-            Unicode::new(xkb::KEY_Hstroke, '\u{126}'),
-        ); // 0x2a1
+        hash.insert(String::from("Hstroke"), Unicode::new(xkb::KEY_Hstroke, '\u{126}')); // 0x2a1
         hash.insert(
             String::from("Hcircumflex"),
             Unicode::new(xkb::KEY_Hcircumflex, '\u{124}'),
@@ -1270,18 +847,12 @@ impl KeysymHash {
             String::from("Iabovedot"),
             Unicode::new(xkb::KEY_Iabovedot, '\u{130}'),
         ); // 0x2a9
-        hash.insert(
-            String::from("Gbreve"),
-            Unicode::new(xkb::KEY_Gbreve, '\u{11e}'),
-        ); // 0x2ab
+        hash.insert(String::from("Gbreve"), Unicode::new(xkb::KEY_Gbreve, '\u{11e}')); // 0x2ab
         hash.insert(
             String::from("Jcircumflex"),
             Unicode::new(xkb::KEY_Jcircumflex, '\u{134}'),
         ); // 0x2ac
-        hash.insert(
-            String::from("hstroke"),
-            Unicode::new(xkb::KEY_hstroke, '\u{127}'),
-        ); // 0x2b1
+        hash.insert(String::from("hstroke"), Unicode::new(xkb::KEY_hstroke, '\u{127}')); // 0x2b1
         hash.insert(
             String::from("hcircumflex"),
             Unicode::new(xkb::KEY_hcircumflex, '\u{125}'),
@@ -1290,10 +861,7 @@ impl KeysymHash {
             String::from("idotless"),
             Unicode::new(xkb::KEY_idotless, '\u{131}'),
         ); // 0x2b9
-        hash.insert(
-            String::from("gbreve"),
-            Unicode::new(xkb::KEY_gbreve, '\u{11f}'),
-        ); // 0x2bb
+        hash.insert(String::from("gbreve"), Unicode::new(xkb::KEY_gbreve, '\u{11f}')); // 0x2bb
         hash.insert(
             String::from("jcircumflex"),
             Unicode::new(xkb::KEY_jcircumflex, '\u{135}'),
@@ -1314,10 +882,7 @@ impl KeysymHash {
             String::from("Gcircumflex"),
             Unicode::new(xkb::KEY_Gcircumflex, '\u{11c}'),
         ); // 0x2d8
-        hash.insert(
-            String::from("Ubreve"),
-            Unicode::new(xkb::KEY_Ubreve, '\u{16c}'),
-        ); // 0x2dd
+        hash.insert(String::from("Ubreve"), Unicode::new(xkb::KEY_Ubreve, '\u{16c}')); // 0x2dd
         hash.insert(
             String::from("Scircumflex"),
             Unicode::new(xkb::KEY_Scircumflex, '\u{15c}'),
@@ -1338,10 +903,7 @@ impl KeysymHash {
             String::from("gcircumflex"),
             Unicode::new(xkb::KEY_gcircumflex, '\u{11d}'),
         ); // 0x2f8
-        hash.insert(
-            String::from("ubreve"),
-            Unicode::new(xkb::KEY_ubreve, '\u{16d}'),
-        ); // 0x2fd
+        hash.insert(String::from("ubreve"), Unicode::new(xkb::KEY_ubreve, '\u{16d}')); // 0x2fd
         hash.insert(
             String::from("scircumflex"),
             Unicode::new(xkb::KEY_scircumflex, '\u{15d}'),
@@ -1352,132 +914,72 @@ impl KeysymHash {
             String::from("Rcedilla"),
             Unicode::new(xkb::KEY_Rcedilla, '\u{156}'),
         ); // 0x3a3
-        hash.insert(
-            String::from("Itilde"),
-            Unicode::new(xkb::KEY_Itilde, '\u{128}'),
-        ); // 0x3a5
+        hash.insert(String::from("Itilde"), Unicode::new(xkb::KEY_Itilde, '\u{128}')); // 0x3a5
         hash.insert(
             String::from("Lcedilla"),
             Unicode::new(xkb::KEY_Lcedilla, '\u{13b}'),
         ); // 0x3a6
-        hash.insert(
-            String::from("Emacron"),
-            Unicode::new(xkb::KEY_Emacron, '\u{112}'),
-        ); // 0x3aa
+        hash.insert(String::from("Emacron"), Unicode::new(xkb::KEY_Emacron, '\u{112}')); // 0x3aa
         hash.insert(
             String::from("Gcedilla"),
             Unicode::new(xkb::KEY_Gcedilla, '\u{122}'),
         ); // 0x3ab
-        hash.insert(
-            String::from("Tslash"),
-            Unicode::new(xkb::KEY_Tslash, '\u{166}'),
-        ); // 0x3ac
+        hash.insert(String::from("Tslash"), Unicode::new(xkb::KEY_Tslash, '\u{166}')); // 0x3ac
         hash.insert(
             String::from("rcedilla"),
             Unicode::new(xkb::KEY_rcedilla, '\u{157}'),
         ); // 0x3b3
-        hash.insert(
-            String::from("itilde"),
-            Unicode::new(xkb::KEY_itilde, '\u{129}'),
-        ); // 0x3b5
+        hash.insert(String::from("itilde"), Unicode::new(xkb::KEY_itilde, '\u{129}')); // 0x3b5
         hash.insert(
             String::from("lcedilla"),
             Unicode::new(xkb::KEY_lcedilla, '\u{13c}'),
         ); // 0x3b6
-        hash.insert(
-            String::from("emacron"),
-            Unicode::new(xkb::KEY_emacron, '\u{113}'),
-        ); // 0x3ba
+        hash.insert(String::from("emacron"), Unicode::new(xkb::KEY_emacron, '\u{113}')); // 0x3ba
         hash.insert(
             String::from("gcedilla"),
             Unicode::new(xkb::KEY_gcedilla, '\u{123}'),
         ); // 0x3bb
-        hash.insert(
-            String::from("tslash"),
-            Unicode::new(xkb::KEY_tslash, '\u{167}'),
-        ); // 0x3bc
+        hash.insert(String::from("tslash"), Unicode::new(xkb::KEY_tslash, '\u{167}')); // 0x3bc
         hash.insert(String::from("ENG"), Unicode::new(xkb::KEY_ENG, '\u{14a}')); // 0x3bd
         hash.insert(String::from("eng"), Unicode::new(xkb::KEY_eng, '\u{14b}')); // 0x3bf
-        hash.insert(
-            String::from("Amacron"),
-            Unicode::new(xkb::KEY_Amacron, '\u{100}'),
-        ); // 0x3c0
-        hash.insert(
-            String::from("Iogonek"),
-            Unicode::new(xkb::KEY_Iogonek, '\u{12e}'),
-        ); // 0x3c7
+        hash.insert(String::from("Amacron"), Unicode::new(xkb::KEY_Amacron, '\u{100}')); // 0x3c0
+        hash.insert(String::from("Iogonek"), Unicode::new(xkb::KEY_Iogonek, '\u{12e}')); // 0x3c7
         hash.insert(
             String::from("Eabovedot"),
             Unicode::new(xkb::KEY_Eabovedot, '\u{116}'),
         ); // 0x3cc
-        hash.insert(
-            String::from("Imacron"),
-            Unicode::new(xkb::KEY_Imacron, '\u{12a}'),
-        ); // 0x3cf
+        hash.insert(String::from("Imacron"), Unicode::new(xkb::KEY_Imacron, '\u{12a}')); // 0x3cf
         hash.insert(
             String::from("Ncedilla"),
             Unicode::new(xkb::KEY_Ncedilla, '\u{145}'),
         ); // 0x3d1
-        hash.insert(
-            String::from("Omacron"),
-            Unicode::new(xkb::KEY_Omacron, '\u{14c}'),
-        ); // 0x3d2
+        hash.insert(String::from("Omacron"), Unicode::new(xkb::KEY_Omacron, '\u{14c}')); // 0x3d2
         hash.insert(
             String::from("Kcedilla"),
             Unicode::new(xkb::KEY_Kcedilla, '\u{136}'),
         ); // 0x3d3
-        hash.insert(
-            String::from("Uogonek"),
-            Unicode::new(xkb::KEY_Uogonek, '\u{172}'),
-        ); // 0x3d9
-        hash.insert(
-            String::from("Utilde"),
-            Unicode::new(xkb::KEY_Utilde, '\u{168}'),
-        ); // 0x3dd
-        hash.insert(
-            String::from("Umacron"),
-            Unicode::new(xkb::KEY_Umacron, '\u{16a}'),
-        ); // 0x3de
-        hash.insert(
-            String::from("amacron"),
-            Unicode::new(xkb::KEY_amacron, '\u{101}'),
-        ); // 0x3e0
-        hash.insert(
-            String::from("iogonek"),
-            Unicode::new(xkb::KEY_iogonek, '\u{12f}'),
-        ); // 0x3e7
+        hash.insert(String::from("Uogonek"), Unicode::new(xkb::KEY_Uogonek, '\u{172}')); // 0x3d9
+        hash.insert(String::from("Utilde"), Unicode::new(xkb::KEY_Utilde, '\u{168}')); // 0x3dd
+        hash.insert(String::from("Umacron"), Unicode::new(xkb::KEY_Umacron, '\u{16a}')); // 0x3de
+        hash.insert(String::from("amacron"), Unicode::new(xkb::KEY_amacron, '\u{101}')); // 0x3e0
+        hash.insert(String::from("iogonek"), Unicode::new(xkb::KEY_iogonek, '\u{12f}')); // 0x3e7
         hash.insert(
             String::from("eabovedot"),
             Unicode::new(xkb::KEY_eabovedot, '\u{117}'),
         ); // 0x3ec
-        hash.insert(
-            String::from("imacron"),
-            Unicode::new(xkb::KEY_imacron, '\u{12b}'),
-        ); // 0x3ef
+        hash.insert(String::from("imacron"), Unicode::new(xkb::KEY_imacron, '\u{12b}')); // 0x3ef
         hash.insert(
             String::from("ncedilla"),
             Unicode::new(xkb::KEY_ncedilla, '\u{146}'),
         ); // 0x3f1
-        hash.insert(
-            String::from("omacron"),
-            Unicode::new(xkb::KEY_omacron, '\u{14d}'),
-        ); // 0x3f2
+        hash.insert(String::from("omacron"), Unicode::new(xkb::KEY_omacron, '\u{14d}')); // 0x3f2
         hash.insert(
             String::from("kcedilla"),
             Unicode::new(xkb::KEY_kcedilla, '\u{137}'),
         ); // 0x3f3
-        hash.insert(
-            String::from("uogonek"),
-            Unicode::new(xkb::KEY_uogonek, '\u{173}'),
-        ); // 0x3f9
-        hash.insert(
-            String::from("utilde"),
-            Unicode::new(xkb::KEY_utilde, '\u{169}'),
-        ); // 0x3fd
-        hash.insert(
-            String::from("umacron"),
-            Unicode::new(xkb::KEY_umacron, '\u{16b}'),
-        ); // 0x3fe
+        hash.insert(String::from("uogonek"), Unicode::new(xkb::KEY_uogonek, '\u{173}')); // 0x3f9
+        hash.insert(String::from("utilde"), Unicode::new(xkb::KEY_utilde, '\u{169}')); // 0x3fd
+        hash.insert(String::from("umacron"), Unicode::new(xkb::KEY_umacron, '\u{16b}')); // 0x3fe
         hash.insert(
             String::from("overline"),
             Unicode::new(xkb::KEY_overline, '\u{203e}'),
@@ -1510,26 +1012,11 @@ impl KeysymHash {
             String::from("kana_WO"),
             Unicode::new(xkb::KEY_kana_WO, '\u{30f2}'),
         ); // 0x4a6
-        hash.insert(
-            String::from("kana_a"),
-            Unicode::new(xkb::KEY_kana_a, '\u{30a1}'),
-        ); // 0x4a7
-        hash.insert(
-            String::from("kana_i"),
-            Unicode::new(xkb::KEY_kana_i, '\u{30a3}'),
-        ); // 0x4a8
-        hash.insert(
-            String::from("kana_u"),
-            Unicode::new(xkb::KEY_kana_u, '\u{30a5}'),
-        ); // 0x4a9
-        hash.insert(
-            String::from("kana_e"),
-            Unicode::new(xkb::KEY_kana_e, '\u{30a7}'),
-        ); // 0x4aa
-        hash.insert(
-            String::from("kana_o"),
-            Unicode::new(xkb::KEY_kana_o, '\u{30a9}'),
-        ); // 0x4ab
+        hash.insert(String::from("kana_a"), Unicode::new(xkb::KEY_kana_a, '\u{30a1}')); // 0x4a7
+        hash.insert(String::from("kana_i"), Unicode::new(xkb::KEY_kana_i, '\u{30a3}')); // 0x4a8
+        hash.insert(String::from("kana_u"), Unicode::new(xkb::KEY_kana_u, '\u{30a5}')); // 0x4a9
+        hash.insert(String::from("kana_e"), Unicode::new(xkb::KEY_kana_e, '\u{30a7}')); // 0x4aa
+        hash.insert(String::from("kana_o"), Unicode::new(xkb::KEY_kana_o, '\u{30a9}')); // 0x4ab
         hash.insert(
             String::from("kana_ya"),
             Unicode::new(xkb::KEY_kana_ya, '\u{30e3}'),
@@ -1546,34 +1033,16 @@ impl KeysymHash {
             String::from("kana_tsu"),
             Unicode::new(xkb::KEY_kana_tsu, '\u{30c3}'),
         ); // 0x4af
-        hash.insert(
-            String::from("kana_tu"),
-            Unicode::new(xkb::KEY_kana_tu, '\u{0}'),
-        ); // 0x4af
+        hash.insert(String::from("kana_tu"), Unicode::new(xkb::KEY_kana_tu, '\u{0}')); // 0x4af
         hash.insert(
             String::from("prolongedsound"),
             Unicode::new(xkb::KEY_prolongedsound, '\u{30fc}'),
         ); // 0x4b0
-        hash.insert(
-            String::from("kana_A"),
-            Unicode::new(xkb::KEY_kana_A, '\u{30a2}'),
-        ); // 0x4b1
-        hash.insert(
-            String::from("kana_I"),
-            Unicode::new(xkb::KEY_kana_I, '\u{30a4}'),
-        ); // 0x4b2
-        hash.insert(
-            String::from("kana_U"),
-            Unicode::new(xkb::KEY_kana_U, '\u{30a6}'),
-        ); // 0x4b3
-        hash.insert(
-            String::from("kana_E"),
-            Unicode::new(xkb::KEY_kana_E, '\u{30a8}'),
-        ); // 0x4b4
-        hash.insert(
-            String::from("kana_O"),
-            Unicode::new(xkb::KEY_kana_O, '\u{30aa}'),
-        ); // 0x4b5
+        hash.insert(String::from("kana_A"), Unicode::new(xkb::KEY_kana_A, '\u{30a2}')); // 0x4b1
+        hash.insert(String::from("kana_I"), Unicode::new(xkb::KEY_kana_I, '\u{30a4}')); // 0x4b2
+        hash.insert(String::from("kana_U"), Unicode::new(xkb::KEY_kana_U, '\u{30a6}')); // 0x4b3
+        hash.insert(String::from("kana_E"), Unicode::new(xkb::KEY_kana_E, '\u{30a8}')); // 0x4b4
+        hash.insert(String::from("kana_O"), Unicode::new(xkb::KEY_kana_O, '\u{30aa}')); // 0x4b5
         hash.insert(
             String::from("kana_KA"),
             Unicode::new(xkb::KEY_kana_KA, '\u{30ab}'),
@@ -1622,18 +1091,12 @@ impl KeysymHash {
             String::from("kana_CHI"),
             Unicode::new(xkb::KEY_kana_CHI, '\u{30c1}'),
         ); // 0x4c1
-        hash.insert(
-            String::from("kana_TI"),
-            Unicode::new(xkb::KEY_kana_TI, '\u{0}'),
-        ); // 0x4c1
+        hash.insert(String::from("kana_TI"), Unicode::new(xkb::KEY_kana_TI, '\u{0}')); // 0x4c1
         hash.insert(
             String::from("kana_TSU"),
             Unicode::new(xkb::KEY_kana_TSU, '\u{30c4}'),
         ); // 0x4c2
-        hash.insert(
-            String::from("kana_TU"),
-            Unicode::new(xkb::KEY_kana_TU, '\u{0}'),
-        ); // 0x4c2
+        hash.insert(String::from("kana_TU"), Unicode::new(xkb::KEY_kana_TU, '\u{0}')); // 0x4c2
         hash.insert(
             String::from("kana_TE"),
             Unicode::new(xkb::KEY_kana_TE, '\u{30c6}'),
@@ -1674,10 +1137,7 @@ impl KeysymHash {
             String::from("kana_FU"),
             Unicode::new(xkb::KEY_kana_FU, '\u{30d5}'),
         ); // 0x4cc
-        hash.insert(
-            String::from("kana_HU"),
-            Unicode::new(xkb::KEY_kana_HU, '\u{0}'),
-        ); // 0x4cc
+        hash.insert(String::from("kana_HU"), Unicode::new(xkb::KEY_kana_HU, '\u{0}')); // 0x4cc
         hash.insert(
             String::from("kana_HE"),
             Unicode::new(xkb::KEY_kana_HE, '\u{30d8}'),
@@ -1742,10 +1202,7 @@ impl KeysymHash {
             String::from("kana_WA"),
             Unicode::new(xkb::KEY_kana_WA, '\u{30ef}'),
         ); // 0x4dc
-        hash.insert(
-            String::from("kana_N"),
-            Unicode::new(xkb::KEY_kana_N, '\u{30f3}'),
-        ); // 0x4dd
+        hash.insert(String::from("kana_N"), Unicode::new(xkb::KEY_kana_N, '\u{30f3}')); // 0x4dd
         hash.insert(
             String::from("voicedsound"),
             Unicode::new(xkb::KEY_voicedsound, '\u{309b}'),
@@ -2802,10 +2259,7 @@ impl KeysymHash {
             String::from("infinity"),
             Unicode::new(xkb::KEY_infinity, '\u{221e}'),
         ); // 0x8c2
-        hash.insert(
-            String::from("nabla"),
-            Unicode::new(xkb::KEY_nabla, '\u{2207}'),
-        ); // 0x8c5
+        hash.insert(String::from("nabla"), Unicode::new(xkb::KEY_nabla, '\u{2207}')); // 0x8c5
         hash.insert(
             String::from("approximate"),
             Unicode::new(xkb::KEY_approximate, '\u{223c}'),
@@ -2842,10 +2296,7 @@ impl KeysymHash {
             String::from("intersection"),
             Unicode::new(xkb::KEY_intersection, '\u{2229}'),
         ); // 0x8dc
-        hash.insert(
-            String::from("union"),
-            Unicode::new(xkb::KEY_union, '\u{222a}'),
-        ); // 0x8dd
+        hash.insert(String::from("union"), Unicode::new(xkb::KEY_union, '\u{222a}')); // 0x8dd
         hash.insert(
             String::from("logicaland"),
             Unicode::new(xkb::KEY_logicaland, '\u{2227}'),
@@ -2933,22 +2384,10 @@ impl KeysymHash {
             String::from("horizlinescan9"),
             Unicode::new(xkb::KEY_horizlinescan9, '\u{23bd}'),
         ); // 0x9f3
-        hash.insert(
-            String::from("leftt"),
-            Unicode::new(xkb::KEY_leftt, '\u{251c}'),
-        ); // 0x9f4
-        hash.insert(
-            String::from("rightt"),
-            Unicode::new(xkb::KEY_rightt, '\u{2524}'),
-        ); // 0x9f5
-        hash.insert(
-            String::from("bott"),
-            Unicode::new(xkb::KEY_bott, '\u{2534}'),
-        ); // 0x9f6
-        hash.insert(
-            String::from("topt"),
-            Unicode::new(xkb::KEY_topt, '\u{252c}'),
-        ); // 0x9f7
+        hash.insert(String::from("leftt"), Unicode::new(xkb::KEY_leftt, '\u{251c}')); // 0x9f4
+        hash.insert(String::from("rightt"), Unicode::new(xkb::KEY_rightt, '\u{2524}')); // 0x9f5
+        hash.insert(String::from("bott"), Unicode::new(xkb::KEY_bott, '\u{2534}')); // 0x9f6
+        hash.insert(String::from("topt"), Unicode::new(xkb::KEY_topt, '\u{252c}')); // 0x9f7
         hash.insert(
             String::from("vertbar"),
             Unicode::new(xkb::KEY_vertbar, '\u{2502}'),
@@ -2985,14 +2424,8 @@ impl KeysymHash {
             String::from("hairspace"),
             Unicode::new(xkb::KEY_hairspace, '\u{200a}'),
         ); // 0xaa8
-        hash.insert(
-            String::from("emdash"),
-            Unicode::new(xkb::KEY_emdash, '\u{2014}'),
-        ); // 0xaa9
-        hash.insert(
-            String::from("endash"),
-            Unicode::new(xkb::KEY_endash, '\u{2013}'),
-        ); // 0xaaa
+        hash.insert(String::from("emdash"), Unicode::new(xkb::KEY_emdash, '\u{2014}')); // 0xaa9
+        hash.insert(String::from("endash"), Unicode::new(xkb::KEY_endash, '\u{2013}')); // 0xaaa
         hash.insert(
             String::from("signifblank"),
             Unicode::new(xkb::KEY_signifblank, '\u{2423}'),
@@ -3037,10 +2470,7 @@ impl KeysymHash {
             String::from("fivesixths"),
             Unicode::new(xkb::KEY_fivesixths, '\u{215a}'),
         ); // 0xab7
-        hash.insert(
-            String::from("careof"),
-            Unicode::new(xkb::KEY_careof, '\u{2105}'),
-        ); // 0xab8
+        hash.insert(String::from("careof"), Unicode::new(xkb::KEY_careof, '\u{2105}')); // 0xab8
         hash.insert(
             String::from("figdash"),
             Unicode::new(xkb::KEY_figdash, '\u{2012}'),
@@ -3057,10 +2487,7 @@ impl KeysymHash {
             String::from("rightanglebracket"),
             Unicode::new(xkb::KEY_rightanglebracket, '\u{27e9}'),
         ); // 0xabe
-        hash.insert(
-            String::from("marker"),
-            Unicode::new(xkb::KEY_marker, '\u{0}'),
-        ); // 0xabf
+        hash.insert(String::from("marker"), Unicode::new(xkb::KEY_marker, '\u{0}')); // 0xabf
         hash.insert(
             String::from("oneeighth"),
             Unicode::new(xkb::KEY_oneeighth, '\u{215b}'),
@@ -3137,10 +2564,7 @@ impl KeysymHash {
             String::from("latincross"),
             Unicode::new(xkb::KEY_latincross, '\u{271d}'),
         ); // 0xad9
-        hash.insert(
-            String::from("hexagram"),
-            Unicode::new(xkb::KEY_hexagram, '\u{0}'),
-        ); // 0xada
+        hash.insert(String::from("hexagram"), Unicode::new(xkb::KEY_hexagram, '\u{0}')); // 0xada
         hash.insert(
             String::from("filledrectbullet"),
             Unicode::new(xkb::KEY_filledrectbullet, '\u{25ac}'),
@@ -3209,26 +2633,17 @@ impl KeysymHash {
             String::from("rightpointer"),
             Unicode::new(xkb::KEY_rightpointer, '\u{261e}'),
         ); // 0xaeb
-        hash.insert(
-            String::from("club"),
-            Unicode::new(xkb::KEY_club, '\u{2663}'),
-        ); // 0xaec
+        hash.insert(String::from("club"), Unicode::new(xkb::KEY_club, '\u{2663}')); // 0xaec
         hash.insert(
             String::from("diamond"),
             Unicode::new(xkb::KEY_diamond, '\u{2666}'),
         ); // 0xaed
-        hash.insert(
-            String::from("heart"),
-            Unicode::new(xkb::KEY_heart, '\u{2665}'),
-        ); // 0xaee
+        hash.insert(String::from("heart"), Unicode::new(xkb::KEY_heart, '\u{2665}')); // 0xaee
         hash.insert(
             String::from("maltesecross"),
             Unicode::new(xkb::KEY_maltesecross, '\u{2720}'),
         ); // 0xaf0
-        hash.insert(
-            String::from("dagger"),
-            Unicode::new(xkb::KEY_dagger, '\u{2020}'),
-        ); // 0xaf1
+        hash.insert(String::from("dagger"), Unicode::new(xkb::KEY_dagger, '\u{2020}')); // 0xaf1
         hash.insert(
             String::from("doubledagger"),
             Unicode::new(xkb::KEY_doubledagger, '\u{2021}'),
@@ -3269,10 +2684,7 @@ impl KeysymHash {
             String::from("phonographcopyright"),
             Unicode::new(xkb::KEY_phonographcopyright, '\u{2117}'),
         ); // 0xafb
-        hash.insert(
-            String::from("caret"),
-            Unicode::new(xkb::KEY_caret, '\u{2038}'),
-        ); // 0xafc
+        hash.insert(String::from("caret"), Unicode::new(xkb::KEY_caret, '\u{2038}')); // 0xafc
         hash.insert(
             String::from("singlelowquotemark"),
             Unicode::new(xkb::KEY_singlelowquotemark, '\u{201a}'),
@@ -3281,10 +2693,7 @@ impl KeysymHash {
             String::from("doublelowquotemark"),
             Unicode::new(xkb::KEY_doublelowquotemark, '\u{201e}'),
         ); // 0xafe
-        hash.insert(
-            String::from("cursor"),
-            Unicode::new(xkb::KEY_cursor, '\u{0}'),
-        ); // 0xaff
+        hash.insert(String::from("cursor"), Unicode::new(xkb::KEY_cursor, '\u{0}')); // 0xaff
         hash.insert(
             String::from("leftcaret"),
             Unicode::new(xkb::KEY_leftcaret, '\u{3c}'),
@@ -3301,18 +2710,12 @@ impl KeysymHash {
             String::from("upcaret"),
             Unicode::new(xkb::KEY_upcaret, '\u{2227}'),
         ); // 0xba9
-        hash.insert(
-            String::from("overbar"),
-            Unicode::new(xkb::KEY_overbar, '\u{af}'),
-        ); // 0xbc0
+        hash.insert(String::from("overbar"), Unicode::new(xkb::KEY_overbar, '\u{af}')); // 0xbc0
         hash.insert(
             String::from("downtack"),
             Unicode::new(xkb::KEY_downtack, '\u{22a5}'),
         ); // 0xbc2
-        hash.insert(
-            String::from("upshoe"),
-            Unicode::new(xkb::KEY_upshoe, '\u{2229}'),
-        ); // 0xbc3
+        hash.insert(String::from("upshoe"), Unicode::new(xkb::KEY_upshoe, '\u{2229}')); // 0xbc3
         hash.insert(
             String::from("downstile"),
             Unicode::new(xkb::KEY_downstile, '\u{230a}'),
@@ -3322,18 +2725,9 @@ impl KeysymHash {
             Unicode::new(xkb::KEY_underbar, '\u{5f}'),
         ); // 0xbc6
         hash.insert(String::from("jot"), Unicode::new(xkb::KEY_jot, '\u{2218}')); // 0xbca
-        hash.insert(
-            String::from("quad"),
-            Unicode::new(xkb::KEY_quad, '\u{2395}'),
-        ); // 0xbcc
-        hash.insert(
-            String::from("uptack"),
-            Unicode::new(xkb::KEY_uptack, '\u{22a4}'),
-        ); // 0xbce
-        hash.insert(
-            String::from("circle"),
-            Unicode::new(xkb::KEY_circle, '\u{25cb}'),
-        ); // 0xbcf
+        hash.insert(String::from("quad"), Unicode::new(xkb::KEY_quad, '\u{2395}')); // 0xbcc
+        hash.insert(String::from("uptack"), Unicode::new(xkb::KEY_uptack, '\u{22a4}')); // 0xbce
+        hash.insert(String::from("circle"), Unicode::new(xkb::KEY_circle, '\u{25cb}')); // 0xbcf
         hash.insert(
             String::from("upstile"),
             Unicode::new(xkb::KEY_upstile, '\u{2308}'),
@@ -3578,10 +2972,7 @@ impl KeysymHash {
             String::from("XF86HomePage"),
             Unicode::new(xkb::KEY_XF86HomePage, '\u{0}'),
         ); // 0x1008FF18
-        hash.insert(
-            String::from("XF86Mail"),
-            Unicode::new(xkb::KEY_XF86Mail, '\u{0}'),
-        ); // 0x1008FF19
+        hash.insert(String::from("XF86Mail"), Unicode::new(xkb::KEY_XF86Mail, '\u{0}')); // 0x1008FF19
         hash.insert(
             String::from("XF86Start"),
             Unicode::new(xkb::KEY_XF86Start, '\u{0}'),
@@ -3598,10 +2989,7 @@ impl KeysymHash {
             String::from("XF86Calculator"),
             Unicode::new(xkb::KEY_XF86Calculator, '\u{0}'),
         ); // 0x1008FF1D
-        hash.insert(
-            String::from("XF86Memo"),
-            Unicode::new(xkb::KEY_XF86Memo, '\u{0}'),
-        ); // 0x1008FF1E
+        hash.insert(String::from("XF86Memo"), Unicode::new(xkb::KEY_XF86Memo, '\u{0}')); // 0x1008FF1E
         hash.insert(
             String::from("XF86ToDoList"),
             Unicode::new(xkb::KEY_XF86ToDoList, '\u{0}'),
@@ -3630,18 +3018,12 @@ impl KeysymHash {
             String::from("XF86RockerEnter"),
             Unicode::new(xkb::KEY_XF86RockerEnter, '\u{0}'),
         ); // 0x1008FF25
-        hash.insert(
-            String::from("XF86Back"),
-            Unicode::new(xkb::KEY_XF86Back, '\u{0}'),
-        ); // 0x1008FF26
+        hash.insert(String::from("XF86Back"), Unicode::new(xkb::KEY_XF86Back, '\u{0}')); // 0x1008FF26
         hash.insert(
             String::from("XF86Forward"),
             Unicode::new(xkb::KEY_XF86Forward, '\u{0}'),
         ); // 0x1008FF27
-        hash.insert(
-            String::from("XF86Stop"),
-            Unicode::new(xkb::KEY_XF86Stop, '\u{0}'),
-        ); // 0x1008FF28
+        hash.insert(String::from("XF86Stop"), Unicode::new(xkb::KEY_XF86Stop, '\u{0}')); // 0x1008FF28
         hash.insert(
             String::from("XF86Refresh"),
             Unicode::new(xkb::KEY_XF86Refresh, '\u{0}'),
@@ -3662,10 +3044,7 @@ impl KeysymHash {
             String::from("XF86ScreenSaver"),
             Unicode::new(xkb::KEY_XF86ScreenSaver, '\u{0}'),
         ); // 0x1008FF2D
-        hash.insert(
-            String::from("XF86WWW"),
-            Unicode::new(xkb::KEY_XF86WWW, '\u{0}'),
-        ); // 0x1008FF2E
+        hash.insert(String::from("XF86WWW"), Unicode::new(xkb::KEY_XF86WWW, '\u{0}')); // 0x1008FF2E
         hash.insert(
             String::from("XF86Sleep"),
             Unicode::new(xkb::KEY_XF86Sleep, '\u{0}'),
@@ -3694,10 +3073,7 @@ impl KeysymHash {
             String::from("XF86LightBulb"),
             Unicode::new(xkb::KEY_XF86LightBulb, '\u{0}'),
         ); // 0x1008FF35
-        hash.insert(
-            String::from("XF86Shop"),
-            Unicode::new(xkb::KEY_XF86Shop, '\u{0}'),
-        ); // 0x1008FF36
+        hash.insert(String::from("XF86Shop"), Unicode::new(xkb::KEY_XF86Shop, '\u{0}')); // 0x1008FF36
         hash.insert(
             String::from("XF86History"),
             Unicode::new(xkb::KEY_XF86History, '\u{0}'),
@@ -3806,14 +3182,8 @@ impl KeysymHash {
             String::from("XF86ApplicationRight"),
             Unicode::new(xkb::KEY_XF86ApplicationRight, '\u{0}'),
         ); // 0x1008FF51
-        hash.insert(
-            String::from("XF86Book"),
-            Unicode::new(xkb::KEY_XF86Book, '\u{0}'),
-        ); // 0x1008FF52
-        hash.insert(
-            String::from("XF86CD"),
-            Unicode::new(xkb::KEY_XF86CD, '\u{0}'),
-        ); // 0x1008FF53
+        hash.insert(String::from("XF86Book"), Unicode::new(xkb::KEY_XF86Book, '\u{0}')); // 0x1008FF52
+        hash.insert(String::from("XF86CD"), Unicode::new(xkb::KEY_XF86CD, '\u{0}')); // 0x1008FF53
         hash.insert(
             String::from("XF86Calculater"),
             Unicode::new(xkb::KEY_XF86Calculater, '\u{0}'),
@@ -3826,22 +3196,13 @@ impl KeysymHash {
             String::from("XF86Close"),
             Unicode::new(xkb::KEY_XF86Close, '\u{0}'),
         ); // 0x1008FF56
-        hash.insert(
-            String::from("XF86Copy"),
-            Unicode::new(xkb::KEY_XF86Copy, '\u{0}'),
-        ); // 0x1008FF57
-        hash.insert(
-            String::from("XF86Cut"),
-            Unicode::new(xkb::KEY_XF86Cut, '\u{0}'),
-        ); // 0x1008FF58
+        hash.insert(String::from("XF86Copy"), Unicode::new(xkb::KEY_XF86Copy, '\u{0}')); // 0x1008FF57
+        hash.insert(String::from("XF86Cut"), Unicode::new(xkb::KEY_XF86Cut, '\u{0}')); // 0x1008FF58
         hash.insert(
             String::from("XF86Display"),
             Unicode::new(xkb::KEY_XF86Display, '\u{0}'),
         ); // 0x1008FF59
-        hash.insert(
-            String::from("XF86DOS"),
-            Unicode::new(xkb::KEY_XF86DOS, '\u{0}'),
-        ); // 0x1008FF5A
+        hash.insert(String::from("XF86DOS"), Unicode::new(xkb::KEY_XF86DOS, '\u{0}')); // 0x1008FF5A
         hash.insert(
             String::from("XF86Documents"),
             Unicode::new(xkb::KEY_XF86Documents, '\u{0}'),
@@ -3854,14 +3215,8 @@ impl KeysymHash {
             String::from("XF86Explorer"),
             Unicode::new(xkb::KEY_XF86Explorer, '\u{0}'),
         ); // 0x1008FF5D
-        hash.insert(
-            String::from("XF86Game"),
-            Unicode::new(xkb::KEY_XF86Game, '\u{0}'),
-        ); // 0x1008FF5E
-        hash.insert(
-            String::from("XF86Go"),
-            Unicode::new(xkb::KEY_XF86Go, '\u{0}'),
-        ); // 0x1008FF5F
+        hash.insert(String::from("XF86Game"), Unicode::new(xkb::KEY_XF86Game, '\u{0}')); // 0x1008FF5E
+        hash.insert(String::from("XF86Go"), Unicode::new(xkb::KEY_XF86Go, '\u{0}')); // 0x1008FF5F
         hash.insert(
             String::from("XF86iTouch"),
             Unicode::new(xkb::KEY_XF86iTouch, '\u{0}'),
@@ -3890,22 +3245,13 @@ impl KeysymHash {
             String::from("XF86MySites"),
             Unicode::new(xkb::KEY_XF86MySites, '\u{0}'),
         ); // 0x1008FF67
-        hash.insert(
-            String::from("XF86New"),
-            Unicode::new(xkb::KEY_XF86New, '\u{0}'),
-        ); // 0x1008FF68
-        hash.insert(
-            String::from("XF86News"),
-            Unicode::new(xkb::KEY_XF86News, '\u{0}'),
-        ); // 0x1008FF69
+        hash.insert(String::from("XF86New"), Unicode::new(xkb::KEY_XF86New, '\u{0}')); // 0x1008FF68
+        hash.insert(String::from("XF86News"), Unicode::new(xkb::KEY_XF86News, '\u{0}')); // 0x1008FF69
         hash.insert(
             String::from("XF86OfficeHome"),
             Unicode::new(xkb::KEY_XF86OfficeHome, '\u{0}'),
         ); // 0x1008FF6A
-        hash.insert(
-            String::from("XF86Open"),
-            Unicode::new(xkb::KEY_XF86Open, '\u{0}'),
-        ); // 0x1008FF6B
+        hash.insert(String::from("XF86Open"), Unicode::new(xkb::KEY_XF86Open, '\u{0}')); // 0x1008FF6B
         hash.insert(
             String::from("XF86Option"),
             Unicode::new(xkb::KEY_XF86Option, '\u{0}'),
@@ -3939,10 +3285,7 @@ impl KeysymHash {
             String::from("XF86RotationKB"),
             Unicode::new(xkb::KEY_XF86RotationKB, '\u{0}'),
         ); // 0x1008FF76
-        hash.insert(
-            String::from("XF86Save"),
-            Unicode::new(xkb::KEY_XF86Save, '\u{0}'),
-        ); // 0x1008FF77
+        hash.insert(String::from("XF86Save"), Unicode::new(xkb::KEY_XF86Save, '\u{0}')); // 0x1008FF77
         hash.insert(
             String::from("XF86ScrollUp"),
             Unicode::new(xkb::KEY_XF86ScrollUp, '\u{0}'),
@@ -3955,10 +3298,7 @@ impl KeysymHash {
             String::from("XF86ScrollClick"),
             Unicode::new(xkb::KEY_XF86ScrollClick, '\u{0}'),
         ); // 0x1008FF7A
-        hash.insert(
-            String::from("XF86Send"),
-            Unicode::new(xkb::KEY_XF86Send, '\u{0}'),
-        ); // 0x1008FF7B
+        hash.insert(String::from("XF86Send"), Unicode::new(xkb::KEY_XF86Send, '\u{0}')); // 0x1008FF7B
         hash.insert(
             String::from("XF86Spell"),
             Unicode::new(xkb::KEY_XF86Spell, '\u{0}'),
@@ -4007,14 +3347,8 @@ impl KeysymHash {
             String::from("XF86WheelButton"),
             Unicode::new(xkb::KEY_XF86WheelButton, '\u{0}'),
         ); // 0x1008FF88
-        hash.insert(
-            String::from("XF86Word"),
-            Unicode::new(xkb::KEY_XF86Word, '\u{0}'),
-        ); // 0x1008FF89
-        hash.insert(
-            String::from("XF86Xfer"),
-            Unicode::new(xkb::KEY_XF86Xfer, '\u{0}'),
-        ); // 0x1008FF8A
+        hash.insert(String::from("XF86Word"), Unicode::new(xkb::KEY_XF86Word, '\u{0}')); // 0x1008FF89
+        hash.insert(String::from("XF86Xfer"), Unicode::new(xkb::KEY_XF86Xfer, '\u{0}')); // 0x1008FF8A
         hash.insert(
             String::from("XF86ZoomIn"),
             Unicode::new(xkb::KEY_XF86ZoomIn, '\u{0}'),
@@ -4023,10 +3357,7 @@ impl KeysymHash {
             String::from("XF86ZoomOut"),
             Unicode::new(xkb::KEY_XF86ZoomOut, '\u{0}'),
         ); // 0x1008FF8C
-        hash.insert(
-            String::from("XF86Away"),
-            Unicode::new(xkb::KEY_XF86Away, '\u{0}'),
-        ); // 0x1008FF8D
+        hash.insert(String::from("XF86Away"), Unicode::new(xkb::KEY_XF86Away, '\u{0}')); // 0x1008FF8D
         hash.insert(
             String::from("XF86Messenger"),
             Unicode::new(xkb::KEY_XF86Messenger, '\u{0}'),
@@ -4055,14 +3386,8 @@ impl KeysymHash {
             String::from("XF86Bluetooth"),
             Unicode::new(xkb::KEY_XF86Bluetooth, '\u{0}'),
         ); // 0x1008FF94
-        hash.insert(
-            String::from("XF86WLAN"),
-            Unicode::new(xkb::KEY_XF86WLAN, '\u{0}'),
-        ); // 0x1008FF95
-        hash.insert(
-            String::from("XF86UWB"),
-            Unicode::new(xkb::KEY_XF86UWB, '\u{0}'),
-        ); // 0x1008FF96
+        hash.insert(String::from("XF86WLAN"), Unicode::new(xkb::KEY_XF86WLAN, '\u{0}')); // 0x1008FF95
+        hash.insert(String::from("XF86UWB"), Unicode::new(xkb::KEY_XF86UWB, '\u{0}')); // 0x1008FF96
         hash.insert(
             String::from("XF86AudioForward"),
             Unicode::new(xkb::KEY_XF86AudioForward, '\u{0}'),
@@ -4095,26 +3420,17 @@ impl KeysymHash {
             String::from("XF86FrameForward"),
             Unicode::new(xkb::KEY_XF86FrameForward, '\u{0}'),
         ); // 0x1008FF9E
-        hash.insert(
-            String::from("XF86Time"),
-            Unicode::new(xkb::KEY_XF86Time, '\u{0}'),
-        ); // 0x1008FF9F
+        hash.insert(String::from("XF86Time"), Unicode::new(xkb::KEY_XF86Time, '\u{0}')); // 0x1008FF9F
         hash.insert(
             String::from("XF86Select"),
             Unicode::new(xkb::KEY_XF86Select, '\u{0}'),
         ); // 0x1008FFA0
-        hash.insert(
-            String::from("XF86View"),
-            Unicode::new(xkb::KEY_XF86View, '\u{0}'),
-        ); // 0x1008FFA1
+        hash.insert(String::from("XF86View"), Unicode::new(xkb::KEY_XF86View, '\u{0}')); // 0x1008FFA1
         hash.insert(
             String::from("XF86TopMenu"),
             Unicode::new(xkb::KEY_XF86TopMenu, '\u{0}'),
         ); // 0x1008FFA2
-        hash.insert(
-            String::from("XF86Red"),
-            Unicode::new(xkb::KEY_XF86Red, '\u{0}'),
-        ); // 0x1008FFA3
+        hash.insert(String::from("XF86Red"), Unicode::new(xkb::KEY_XF86Red, '\u{0}')); // 0x1008FFA3
         hash.insert(
             String::from("XF86Green"),
             Unicode::new(xkb::KEY_XF86Green, '\u{0}'),
@@ -4123,10 +3439,7 @@ impl KeysymHash {
             String::from("XF86Yellow"),
             Unicode::new(xkb::KEY_XF86Yellow, '\u{0}'),
         ); // 0x1008FFA5
-        hash.insert(
-            String::from("XF86Blue"),
-            Unicode::new(xkb::KEY_XF86Blue, '\u{0}'),
-        ); // 0x1008FFA6
+        hash.insert(String::from("XF86Blue"), Unicode::new(xkb::KEY_XF86Blue, '\u{0}')); // 0x1008FFA6
         hash.insert(
             String::from("XF86Suspend"),
             Unicode::new(xkb::KEY_XF86Suspend, '\u{0}'),
@@ -4223,10 +3536,7 @@ impl KeysymHash {
             String::from("XF86LogGrabInfo"),
             Unicode::new(xkb::KEY_XF86LogGrabInfo, '\u{0}'),
         ); // 0x1008FE25
-        hash.insert(
-            String::from("ISO_Lock"),
-            Unicode::new(xkb::KEY_ISO_Lock, '\u{0}'),
-        ); // 0xfe01
+        hash.insert(String::from("ISO_Lock"), Unicode::new(xkb::KEY_ISO_Lock, '\u{0}')); // 0xfe01
         hash.insert(
             String::from("ISO_Level2_Latch"),
             Unicode::new(xkb::KEY_ISO_Level2_Latch, '\u{0}'),
@@ -4539,46 +3849,16 @@ impl KeysymHash {
             String::from("dead_longsolidusoverlay"),
             Unicode::new(xkb::KEY_dead_longsolidusoverlay, '\u{0}'),
         ); // 0xfe93
-        hash.insert(
-            String::from("dead_a"),
-            Unicode::new(xkb::KEY_dead_a, '\u{0}'),
-        ); // 0xfe80
-        hash.insert(
-            String::from("dead_A"),
-            Unicode::new(xkb::KEY_dead_A, '\u{0}'),
-        ); // 0xfe81
-        hash.insert(
-            String::from("dead_e"),
-            Unicode::new(xkb::KEY_dead_e, '\u{0}'),
-        ); // 0xfe82
-        hash.insert(
-            String::from("dead_E"),
-            Unicode::new(xkb::KEY_dead_E, '\u{0}'),
-        ); // 0xfe83
-        hash.insert(
-            String::from("dead_i"),
-            Unicode::new(xkb::KEY_dead_i, '\u{0}'),
-        ); // 0xfe84
-        hash.insert(
-            String::from("dead_I"),
-            Unicode::new(xkb::KEY_dead_I, '\u{0}'),
-        ); // 0xfe85
-        hash.insert(
-            String::from("dead_o"),
-            Unicode::new(xkb::KEY_dead_o, '\u{0}'),
-        ); // 0xfe86
-        hash.insert(
-            String::from("dead_O"),
-            Unicode::new(xkb::KEY_dead_O, '\u{0}'),
-        ); // 0xfe87
-        hash.insert(
-            String::from("dead_u"),
-            Unicode::new(xkb::KEY_dead_u, '\u{0}'),
-        ); // 0xfe88
-        hash.insert(
-            String::from("dead_U"),
-            Unicode::new(xkb::KEY_dead_U, '\u{0}'),
-        ); // 0xfe89
+        hash.insert(String::from("dead_a"), Unicode::new(xkb::KEY_dead_a, '\u{0}')); // 0xfe80
+        hash.insert(String::from("dead_A"), Unicode::new(xkb::KEY_dead_A, '\u{0}')); // 0xfe81
+        hash.insert(String::from("dead_e"), Unicode::new(xkb::KEY_dead_e, '\u{0}')); // 0xfe82
+        hash.insert(String::from("dead_E"), Unicode::new(xkb::KEY_dead_E, '\u{0}')); // 0xfe83
+        hash.insert(String::from("dead_i"), Unicode::new(xkb::KEY_dead_i, '\u{0}')); // 0xfe84
+        hash.insert(String::from("dead_I"), Unicode::new(xkb::KEY_dead_I, '\u{0}')); // 0xfe85
+        hash.insert(String::from("dead_o"), Unicode::new(xkb::KEY_dead_o, '\u{0}')); // 0xfe86
+        hash.insert(String::from("dead_O"), Unicode::new(xkb::KEY_dead_O, '\u{0}')); // 0xfe87
+        hash.insert(String::from("dead_u"), Unicode::new(xkb::KEY_dead_u, '\u{0}')); // 0xfe88
+        hash.insert(String::from("dead_U"), Unicode::new(xkb::KEY_dead_U, '\u{0}')); // 0xfe89
         hash.insert(
             String::from("dead_small_schwa"),
             Unicode::new(xkb::KEY_dead_small_schwa, '\u{0}'),
@@ -4817,7 +4097,8 @@ impl KeysymHash {
         if let Some(key) = self.get_keysym_code_from_str(keysym) {
             String::from_utf8(
                 key.to_le_bytes()
-                    .to_vec()
+                    .iter()
+                    .copied()
                     .into_iter()
                     .filter(|&b| b > 0)
                     .collect(),

@@ -104,11 +104,12 @@ impl Config {
         if !path.is_file() {
             let initialization = include_str!("../example/lxhkd.yml");
 
-            let mut config_file: fs::File = fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(&path)
-                .with_context(|| format!("could not create lxhkd config: '{}'", path.display()))?;
+            let mut config_file: fs::File =
+                fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .open(&path)
+                    .with_context(|| format!("could not create lxhkd config: '{}'", path.display()))?;
 
             config_file
                 .write_all(initialization.as_bytes())

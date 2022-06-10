@@ -74,6 +74,7 @@ impl RemapKeyState {
     }
 
     /// Return the keys that are being mapped (`from_key`)
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn from_key(&self) -> &Chord {
         &self.from_key
     }

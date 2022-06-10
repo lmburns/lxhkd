@@ -85,19 +85,28 @@ impl XKeyCode {
 
 impl From<CharacterMap> for XKeyCode {
     fn from(charmap: CharacterMap) -> Self {
-        Self { mask: ModifierMask::new(charmap.modmask), code: charmap.code }
+        Self {
+            mask: ModifierMask::new(charmap.modmask),
+            code: charmap.code,
+        }
     }
 }
 
 impl From<KeyPressEvent> for XKeyCode {
     fn from(event: KeyPressEvent) -> Self {
-        Self { mask: ModifierMask::new(event.state), code: event.detail }
+        Self {
+            mask: ModifierMask::new(event.state),
+            code: event.detail,
+        }
     }
 }
 
 impl From<&KeyPressEvent> for XKeyCode {
     fn from(event: &KeyPressEvent) -> Self {
-        Self { mask: ModifierMask::new(event.state), code: event.detail }
+        Self {
+            mask: ModifierMask::new(event.state),
+            code: event.detail,
+        }
     }
 }
 
@@ -114,9 +123,7 @@ impl fmt::Display for XKeyCode {
 /// available.
 ///
 /// `bool`s are needed here to combine multiple modifiers
-#[derive(
-    Debug, Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub(crate) struct ModifierMask {
     mask: u16,
 }
@@ -423,8 +430,6 @@ impl fmt::Display for XButton {
 
 // ================ CharacterMap ==================
 
-// TODO: Turn all fields private
-
 /// Represents an individual character/keypress. If it is found within an
 /// `XModmap` output of `xmodmap -pke`, then it will be in here.
 ///
@@ -596,8 +601,5 @@ impl CharacterMap {
 /// Get the `ModMask` of a `Keycode` based on the set modifiers found in
 /// [`KeyModMap`](x11rb::protocol::KeyModMap)
 pub(super) fn get_modmask_from_keycode(modmap: &[KeyModMap], keycode: Keycode) -> u8 {
-    modmap
-        .iter()
-        .find(|m| m.keycode == keycode)
-        .map_or(0, |m| m.mods)
+    modmap.iter().find(|m| m.keycode == keycode).map_or(0, |m| m.mods)
 }

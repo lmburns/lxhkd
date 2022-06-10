@@ -27,8 +27,9 @@ serde_yaml = "0.8.21"
 serde = { version = "1.0.27", features = ["derive"] }
 
 log = "0.4.14"
-flexi_logger = { version = "0.18", default_features = false, features = ["colors"] }
-better-panic = "0.2.0"
+flexi_logger = { version = "0.22", default_features = false, features = ["colors"] }
+time = "0.3.9"
+better-panic = "0.3.0"
 
 regex = "1.5.4"
 itertools = "0.10.1"
@@ -43,7 +44,7 @@ cli-table = "0.4.6"
 indexmap = { version = "1.7.0", features = ["serde-1"] }
 shellexpand = "2.1.0"
 strip-ansi-escapes = "0.1.1"
-nix = "0.23.0"
+nix = "0.24.1"
 
 psutil = { version = "3.2.1", default-features = false, features = ["process"] }
 chrono = "0.4.19"

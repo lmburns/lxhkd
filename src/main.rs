@@ -159,12 +159,11 @@ fn main() -> Result<()> {
                 });
         } else if args.kill {
             // TODO: Check for daemon in background if trying to run in foreground
-            let pid_contents =
-                fs::read_to_string(pidpath).context("failed to read pidfile to string")?;
+            let pid_contents = fs::read_to_string(pidpath).context("failed to read pidfile to string")?;
             let pid = pid_contents.parse::<i32>().unwrap_or_else(|_| {
                 lxhkd_fatal!(
-                    "unable to kill the daemon. The process has either been terminated manually, \
-                     or the pidfile's contents have been modified. Contents ({})",
+                    "unable to kill the daemon. The process has either been terminated manually, or the \
+                     pidfile's contents have been modified. Contents ({})",
                     pid_contents
                 )
             });

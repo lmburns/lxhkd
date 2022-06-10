@@ -171,17 +171,10 @@ pub(crate) const MODIFIERS: Lazy<Vec<(String, u32)>> = Lazy::new(|| {
 #[allow(clippy::declare_interior_mutable_const)]
 pub(crate) const HELD_MODIFIERS: Lazy<Vec<(String, u32)>> = Lazy::new(|| {
     let hash = KeysymHash::HASH;
-    [
-        "Control_L",
-        "Alt_L",
-        "Shift_L",
-        "Super_L",
-        "Hyper_L",
-        "Meta_L",
-    ]
-    .iter()
-    .map(|m| ((*m).to_string(), hash.get_keysym_code_from_str(m).unwrap()))
-    .collect::<Vec<_>>()
+    ["Control_L", "Alt_L", "Shift_L", "Super_L", "Hyper_L", "Meta_L"]
+        .iter()
+        .map(|m| ((*m).to_string(), hash.get_keysym_code_from_str(m).unwrap()))
+        .collect::<Vec<_>>()
 });
 
 impl Keyboard {
@@ -197,10 +190,7 @@ impl Keyboard {
 
         let use_extension = |conn: &RustConnection, extension_name: &'static str| -> Result<()> {
             if conn.extension_information(extension_name)?.is_none() {
-                lxhkd_fatal!(
-                    "{} X11 extension is unsupported",
-                    extension_name.green().bold()
-                );
+                lxhkd_fatal!("{} X11 extension is unsupported", extension_name.green().bold());
             }
 
             Ok(())
@@ -477,13 +467,7 @@ impl Keyboard {
     /// spot)
     pub(crate) fn get_compat_map_reply(&self) -> Result<GetCompatMapReply> {
         self.conn
-            .xkb_get_compat_map(
-                ID::USE_CORE_KBD.into(),
-                xkb::CMDetail::SYM_INTERP,
-                true,
-                1,
-                20,
-            )
+            .xkb_get_compat_map(ID::USE_CORE_KBD.into(), xkb::CMDetail::SYM_INTERP, true, 1, 20)
             .context("failed to get `GetCompatMappingReply`")?
             .reply()
             .context("failed to get XKB `GetCompatMappingReply` reply")
@@ -628,10 +612,7 @@ impl Keyboard {
         let sym_maps = map.syms_rtrn.as_ref().ok_or(Error::AcquireKeysyms)?;
         let key_modmap = map.modmap_rtrn.as_ref().ok_or(Error::AcquireModmap)?;
         let vmods = map.vmods_rtrn.as_ref().ok_or(Error::AcquireVirtualModmap)?;
-        let virtual_mod = map
-            .vmodmap_rtrn
-            .as_ref()
-            .ok_or(Error::AcquireVirtualModmap)?;
+        let virtual_mod = map.vmodmap_rtrn.as_ref().ok_or(Error::AcquireVirtualModmap)?;
 
         self.modmap = key_modmap.clone();
 
@@ -642,7 +623,7 @@ impl Keyboard {
                 .find(|v| v.keycode == kc)
                 .map_or(0, |v| v.vmods);
 
-            for group in 0..symm.group_info & 0x0f {
+            for group in 0..symm.group_info & 0x0F {
                 let key_type_idx = symm.kt_index[group as usize & 0x03];
                 let key_type = key_types
                     .get(key_type_idx as usize)
@@ -729,9 +710,7 @@ impl Keyboard {
 
         for i in 0..num_mod {
             for j in 0..r.keycodes_per_modifier() {
-                if keycode
-                    == r.keycodes[i * usize::from(r.keycodes_per_modifier()) + usize::from(j)]
-                {
+                if keycode == r.keycodes[i * usize::from(r.keycodes_per_modifier()) + usize::from(j)] {
                     modmask.combine_u16(1 << i);
                 }
             }
@@ -831,9 +810,8 @@ impl Keyboard {
         // self.conn.ungrab_button(ButtonIndex::ANY, self.root, ModMask::ANY)?;
 
         // EventMask::POINTER_MOTION
-        let event_mask = u32::from(
-            EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION,
-        );
+        let event_mask =
+            u32::from(EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::BUTTON_MOTION);
         for button in buttons {
             for mask in ModifierMask::return_ignored(button.modmask()) {
                 self.conn.grab_button(
@@ -857,9 +835,9 @@ impl Keyboard {
     /// Ungrab the given `Button`s
     pub(crate) fn ungrab_button(&self, buttons: &[XButton]) {
         for button in buttons {
-            if let Err(e) =
-                self.conn
-                    .ungrab_button(button.code().into(), self.root, button.modmask())
+            if let Err(e) = self
+                .conn
+                .ungrab_button(button.code().into(), self.root, button.modmask())
             {
                 lxhkd_fatal!("failed to ungrab button: {}", button);
             }
@@ -868,9 +846,9 @@ impl Keyboard {
 
     /// Ungrab any grabbed button
     pub(crate) fn ungrab_any_button(&self) {
-        if let Err(e) =
-            self.conn
-                .ungrab_button(xproto::ButtonIndex::ANY, self.root, xproto::ModMask::ANY)
+        if let Err(e) = self
+            .conn
+            .ungrab_button(xproto::ButtonIndex::ANY, self.root, xproto::ModMask::ANY)
         {
             lxhkd_fatal!("failed to ungrab any button: {}", e);
         }
@@ -897,8 +875,8 @@ impl Keyboard {
         for mod_idx in u16::from(MapIndex::SHIFT)..=u16::from(MapIndex::M5) {
             if modmask & (1 << mod_idx) != 0 {
                 'inner: for modkey in 0..keycodes_per_modifier {
-                    let keycode = modmap
-                        [(mod_idx * u16::from(keycodes_per_modifier) + u16::from(modkey)) as usize];
+                    let keycode =
+                        modmap[(mod_idx * u16::from(keycodes_per_modifier) + u16::from(modkey)) as usize];
 
                     if keycode != 0 {
                         // println!("KEYCODE == {:#?}", keycode);
@@ -1396,12 +1374,7 @@ impl Keyboard {
     }
 
     /// Send a `KeyPress` and `KeyRelease`
-    pub(crate) fn send_keycode(
-        &self,
-        sim_keycode: u8,
-        mask: u16,
-        window: xproto::Window,
-    ) -> Result<()> {
+    pub(crate) fn send_keycode(&self, sim_keycode: u8, mask: u16, window: xproto::Window) -> Result<()> {
         self.send_key_press_event(sim_keycode, mask, window)?;
         self.send_key_release_event(sim_keycode, mask, window)?;
 
@@ -1414,8 +1387,10 @@ impl Keyboard {
     /// ([`Range`](x11rb::protocol::record::Range))
     pub(crate) fn gen_record_range() -> record::Range {
         let empty = record::Range8 { first: 0, last: 0 };
-        let empty_ext =
-            record::ExtRange { major: empty, minor: record::Range16 { first: 0, last: 0 } };
+        let empty_ext = record::ExtRange {
+            major: empty,
+            minor: record::Range16 { first: 0, last: 0 },
+        };
 
         record::Range {
             core_requests:    empty,
@@ -1514,12 +1489,7 @@ impl Keyboard {
         for charmap in &self.charmap {
             table.push(vec![
                 charmap.utf().purple().bold().cell().justify(Justify::Left),
-                charmap
-                    .code()
-                    .to_string()
-                    .green()
-                    .cell()
-                    .justify(Justify::Left),
+                charmap.code().to_string().green().cell().justify(Justify::Left),
                 charmap
                     .symbol()
                     .to_string()
@@ -1597,8 +1567,7 @@ impl Keyboard {
 
         let bold = |s: &str| -> ColoredString { s.green().bold() };
         println!(
-            "{}: charmap: {} from code: {}\n{}: charmap: {} from code: {}\n{}: charmap: {} from \
-             code: {}",
+            "{}: charmap: {} from code: {}\n{}: charmap: {} from code: {}\n{}: charmap: {} from code: {}",
             bold("Num_Lock"),
             num_mask,
             num_from_code,

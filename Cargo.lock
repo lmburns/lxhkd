@@ -1043,13 +1043,12 @@ dependencies = [
 
 [[package]]
 name = "xcb"
-version = "1.0.0-beta.1"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e3a7c6ae3716b2799d490154c787351ea26449d983e6acbc508dc91198d42a6"
+checksum = "b127bf5bfe9dbb39118d6567e3773d4bbc795411a8e1ef7b7e056bccac0011a9"
 dependencies = [
  "bitflags",
  "libc",
- "log",
  "quick-xml",
 ]
 

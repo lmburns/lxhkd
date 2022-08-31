@@ -883,7 +883,7 @@ impl Keyboard {
                         self.conn
                             .xtest_fake_input(
                                 pressed
-                                    .then(|| xproto::KEY_PRESS_EVENT)
+                                    .then_some(xproto::KEY_PRESS_EVENT)
                                     .unwrap_or(xproto::KEY_RELEASE_EVENT),
                                 keycode,
                                 x11rb::CURRENT_TIME,
@@ -957,7 +957,7 @@ impl Keyboard {
             self.conn
                 .xtest_fake_input(
                     pressed
-                        .then(|| xproto::KEY_PRESS_EVENT)
+                        .then_some(xproto::KEY_PRESS_EVENT)
                         .unwrap_or(xproto::KEY_RELEASE_EVENT),
                     chord.charmap().code(),
                     x11rb::CURRENT_TIME,
@@ -994,7 +994,7 @@ impl Keyboard {
 
             let event = xproto::KeyPressEvent {
                 response_type: pressed
-                    .then(|| xproto::KEY_PRESS_EVENT)
+                    .then_some(xproto::KEY_PRESS_EVENT)
                     .unwrap_or(xproto::KEY_RELEASE_EVENT),
                 detail:        chord.charmap().code(),
                 sequence:      0,
@@ -1015,7 +1015,7 @@ impl Keyboard {
                     true, // propagate
                     window,
                     pressed
-                        .then(|| EventMask::KEY_PRESS)
+                        .then_some(EventMask::KEY_PRESS)
                         .unwrap_or(EventMask::KEY_RELEASE),
                     event,
                 )

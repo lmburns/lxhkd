@@ -65,7 +65,8 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::upper_case_acronyms,
-    clippy::enum_variant_names
+    clippy::enum_variant_names,
+    clippy::obfuscated_if_else
 )]
 #![cfg_attr(
     any(test),

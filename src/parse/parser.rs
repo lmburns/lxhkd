@@ -456,7 +456,7 @@ impl<'a> TokenizedLine<'a> {
                                 modmask.mask(),
                                 0.into(),
                                 is_release
-                                    .then(|| xproto::KEY_RELEASE_EVENT)
+                                    .then_some(xproto::KEY_RELEASE_EVENT)
                                     .unwrap_or(xproto::KEY_PRESS_EVENT),
                             ));
                         }
@@ -507,7 +507,7 @@ impl<'a> TokenizedLine<'a> {
                             modmask.mask(),
                             0.into(),
                             is_release
-                                .then(|| xproto::KEY_RELEASE_EVENT)
+                                .then_some(xproto::KEY_RELEASE_EVENT)
                                 .unwrap_or(xproto::KEY_PRESS_EVENT),
                         ));
                     } else {
@@ -529,7 +529,7 @@ impl<'a> TokenizedLine<'a> {
                                 modmask.mask(),
                                 0.into(),
                                 is_release
-                                    .then(|| xproto::KEY_RELEASE_EVENT)
+                                    .then_some(xproto::KEY_RELEASE_EVENT)
                                     .unwrap_or(xproto::KEY_PRESS_EVENT),
                             ));
                         } else {
@@ -545,7 +545,7 @@ impl<'a> TokenizedLine<'a> {
                             modmask.mask(),
                             0.into(),
                             is_release
-                                .then(|| xproto::KEY_RELEASE_EVENT)
+                                .then_some(xproto::KEY_RELEASE_EVENT)
                                 .unwrap_or(xproto::KEY_PRESS_EVENT),
                         ));
                     }
@@ -558,7 +558,7 @@ impl<'a> TokenizedLine<'a> {
                         modmask.mask(),
                         ButtonCode::from(*n),
                         is_release
-                            .then(|| xproto::BUTTON_RELEASE_EVENT)
+                            .then_some(xproto::BUTTON_RELEASE_EVENT)
                             .unwrap_or(xproto::BUTTON_PRESS_EVENT),
                     ));
                 },

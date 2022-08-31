@@ -198,7 +198,7 @@ impl Action {
         match self {
             Self::Shell(cmd) => {
                 log::trace!("running shell: {}", cmd);
-                Self::spawn_shell(cmd, shell.as_ref().unwrap_or(&SHELL.to_string()));
+                Self::spawn_shell(cmd, shell.as_ref().unwrap_or(&SHELL));
             },
             Self::Remap(remap) => {
                 log::trace!("running remap: {}", remap);
